@@ -216,6 +216,7 @@ select{appearance:auto;}
     <button class="tab-btn" data-tab="evolution">Évolution</button>
     <button class="tab-btn" data-tab="dynamique">Dynamique mensuelle</button>
     <button class="tab-btn" data-tab="perduesmonth">Perdues par mois</button>
+    <button class="tab-btn" data-tab="qualite">Qualité saisie</button>
   </div>
   <!-- TAB PIPE EN COURS -->
   <div id="tab-encours" class="tab-panel active">
@@ -489,6 +490,36 @@ select{appearance:auto;}
       </div>
     </div>
   </div>
+  <!-- TAB QUALITÉ DE SAISIE -->
+  <div id="tab-qualite" class="tab-panel">
+    <div class="content">
+      <div style="font-family:'Saira Extra Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--deep);letter-spacing:.04em;text-transform:uppercase;margin-bottom:1.2rem;">Qualité de saisie — opportunités ouvertes</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">Opps ouvertes</div><div class="kpi-val" id="q-nb"></div><div class="kpi-sub">hors fermées & internes</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="q-nodate"></div><div class="kpi-sub">à compléter</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Clôture dépassée</div><div class="kpi-val" id="q-overdue"></div><div class="kpi-sub">date passée, encore ouvertes</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Pôle « Business »</div><div class="kpi-val" id="q-biz"></div><div class="kpi-sub">à recatégoriser</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Sans positionnement</div><div class="kpi-val" id="q-nopos"></div><div class="kpi-sub">Pos. Actif = 0</div></div>
+      </div>
+      <div class="card-full"><div class="ct">Ancienneté des opportunités ouvertes — par mois de création</div>
+        <div class="chart-wrap" id="wrap-q-age" style="height:300px;"><canvas id="ch-q-age" style="cursor:pointer;"></canvas></div>
+        <div class="chart-hint">De la plus ancienne (gauche) à la plus récente — cliquez une barre pour le détail</div></div>
+      <div class="card-full"><div class="ct r">Besoins en pôle « Business development » — à corriger (avec le commercial)</div>
+        <table class="dt r"><colgroup><col style="width:34%"><col style="width:22%"><col style="width:20%"><col style="width:12%"><col style="width:12%"></colgroup>
+        <thead><tr><th>Opportunité</th><th>Client</th><th>Commercial</th><th>Créée le</th><th>État</th></tr></thead><tbody id="tb-q-biz"></tbody></table></div>
+      <div class="g2">
+        <div class="card"><div class="ct r">Sans date de clôture</div>
+          <table class="dt r"><colgroup><col style="width:40%"><col style="width:28%"><col style="width:16%"><col style="width:16%"></colgroup>
+          <thead><tr><th>Opportunité</th><th>Client</th><th>Comm.</th><th>Créée le</th></tr></thead><tbody id="tb-q-nodate"></tbody></table></div>
+        <div class="card"><div class="ct r">Clôture dépassée</div>
+          <table class="dt r"><colgroup><col style="width:38%"><col style="width:26%"><col style="width:14%"><col style="width:22%"></colgroup>
+          <thead><tr><th>Opportunité</th><th>Client</th><th>Comm.</th><th>Clôture prévue</th></tr></thead><tbody id="tb-q-overdue"></tbody></table></div>
+      </div>
+      <div class="card-full"><div class="ct r">Sans positionnement (Pos. Actif = 0)</div>
+        <table class="dt r"><colgroup><col style="width:32%"><col style="width:22%"><col style="width:18%"><col style="width:16%"><col style="width:12%"></colgroup>
+        <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>Commercial</th><th>Créée le</th></tr></thead><tbody id="tb-q-nopos"></tbody></table></div>
+    </div>
+  </div>
 </div>
 <script>
 /* ══ CONSTANTS ═══════════════════════════════════════════ */
@@ -531,6 +562,7 @@ const getPond=r=>pn(gf(r,'Pondération','Pondération'));
 const getPole=r=>gf(r,'Pôle','Pôle')||'Autre';
 const getComm=r=>gf(r,'Responsable manager')||'Inconnu';
 const getCreation=r=>pd(gf(r,'Date de création','Date de création'));
+const getPos=r=>pn(gf(r,'Pos. Actif','Pos. Actif'));
 function groupSum(rows,kFn,vFn){const m={};rows.forEach(r=>{const k=kFn(r)||'Autre';m[k]=(m[k]||0)+vFn(r);});return m;}
 function sortedE(m){return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
 /* Semaine ISO depuis une date */
@@ -1012,6 +1044,51 @@ document.querySelectorAll('.evo-toggle').forEach(btn=>{
     });
   });
 });
+/* ══ TAB QUALITÉ DE SAISIE ════════════════════════════════ */
+function buildQualite(rows){
+  const today=new Date();today.setHours(0,0,0,0);
+  const real=rows.filter(r=>!isProjetInterne(r));
+  const ouv=real.filter(r=>ENC.includes(getEtat(r)));
+  const dClo=r=>pd(gf(r,'Date de clôture','Date de clôture'));
+  const sansDate=ouv.filter(r=>!gf(r,'Date de clôture','Date de clôture'));
+  const depassee=ouv.filter(r=>{const d=dClo(r);return d&&d<today;});
+  const biz=real.filter(r=>getPole(r).toLowerCase().includes('business'));
+  const sansPos=ouv.filter(r=>getPos(r)===0);
+  document.getElementById('q-nb').textContent=ouv.length;
+  document.getElementById('q-nodate').textContent=sansDate.length;
+  document.getElementById('q-overdue').textContent=depassee.length;
+  document.getElementById('q-biz').textContent=biz.length;
+  document.getElementById('q-nopos').textContent=sansPos.length;
+  /* Bar ancienneté : opps ouvertes par mois de création (chronologique) */
+  const byMonth={};
+  ouv.forEach(r=>{const d=getCreation(r);if(!d)return;const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;(byMonth[k]=byMonth[k]||[]).push(r);});
+  const months=Object.keys(byMonth).sort();
+  const labels=months.map(k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});});
+  const counts=months.map(k=>byMonth[k].length);
+  const colors=months.map((k,i)=>{const a=months.length>1?i/(months.length-1):1;return a<0.34?'#6D0718':a<0.67?'#FF4C41':BL;});
+  dch('q-age');
+  CH['q-age']=new Chart(document.getElementById('ch-q-age'),{type:'bar',data:{labels,datasets:[{label:'Opportunités ouvertes',data:counts,backgroundColor:colors,borderRadius:2,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:([c])=>labels[c.dataIndex],label:c=>` ${c.raw} opp. ouverte${c.raw>1?'s':''} — cliquez`}}},scales:{x:{...SC.x,ticks:{...SC.x.ticks,maxRotation:60,minRotation:45}},y:{...SC.y,min:0,ticks:{...SC.y.ticks,stepSize:1}}},onClick:(evt,els)=>{if(els.length){const k=months[els[0].index];openDrill('Créées en '+labels[els[0].index],'Opportunités ouvertes — ancienneté',byMonth[k]);}}}});
+  /* Tables */
+  function setTable(id,list,cols,rowHtml,emptyMsg){
+    const tb=document.getElementById(id);tb.innerHTML='';
+    if(!list.length){tb.innerHTML=`<tr><td colspan="${cols}" style="text-align:center;color:var(--gm);padding:14px">${emptyMsg}</td></tr>`;return;}
+    list.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=rowHtml(r);tb.appendChild(tr);});
+  }
+  const soc=r=>gf(r,'Société - Nom','Société - Nom')||'—';
+  const tit=r=>gf(r,'Titre')||'—';
+  setTable('tb-q-biz',[...biz].sort((a,b)=>(getCreation(b)||0)-(getCreation(a)||0)),5,
+    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-weight:600;color:var(--klein)">${getComm(r)||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td><td><span class="bd ${ETAT_BD[getEtat(r)]||'bd-gray'}">${getEtat(r)||'—'}</span></td>`;},
+    'Aucun besoin en pôle Business 🎉');
+  setTable('tb-q-nodate',[...sansDate].sort((a,b)=>(getCreation(a)||0)-(getCreation(b)||0)),4,
+    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
+    'Aucune 🎉');
+  setTable('tb-q-overdue',[...depassee].sort((a,b)=>(dClo(a)||0)-(dClo(b)||0)),4,
+    r=>{const d=dClo(r);const days=d?Math.round((today-d)/86400000):0;return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td style="color:#6D0718;font-weight:700">${d?d.toLocaleDateString('fr-FR'):'—'} <span style="font-size:10px;color:#B0B0B0">(+${days}j)</span></td>`;},
+    'Aucune 🎉');
+  setTable('tb-q-nopos',[...sansPos].sort((a,b)=>(getCreation(a)||0)-(getCreation(b)||0)),5,
+    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td>${getPole(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
+    'Aucune 🎉');
+}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
 function loadCsv(text,isAdd){
   const rows=parseCsv(text);
@@ -1032,7 +1109,7 @@ function loadCsv(text,isAdd){
     document.getElementById('opp-count').textContent=rows.length+' opportunités';
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);
+    buildEnCours(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
