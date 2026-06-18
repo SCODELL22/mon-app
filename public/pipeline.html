@@ -204,7 +204,6 @@ select{appearance:auto;}
     </div>
     <div class="tb-right">
       <span class="wb" id="week-badge"></span>
-      <a class="btn-g" href="/" style="text-decoration:none;">← Retour à l'app</a>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
     </div>
   </div>
@@ -1053,12 +1052,20 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click'
   }
 });});
 /* ══ FILE EVENTS ══════════════════════════════════════════ */
+function uploadToServer(file){
+  const fd=new FormData();fd.append('file',file);
+  const b=document.getElementById('week-badge');
+  if(b)b.textContent='enregistrement…';
+  fetch('/api/import',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+    if(b)b.textContent=(d&&d.count)?('\u2713 '+d.count+' enregistr\u00e9es sur le serveur'):'';
+  }).catch(()=>{if(b)b.textContent='';});
+}
 const dropZone=document.getElementById('drop-zone');const fi=document.getElementById('file-input');const fiA=document.getElementById('file-input-add');
 dropZone.addEventListener('click',()=>fi.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,false);r.readAsText(f,'windows-1252');}});
-fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,false);r.readAsText(f,'windows-1252');}});
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=ev=>{loadCsv(ev.target.result,false);uploadToServer(f);};r.readAsText(f,'windows-1252');}});
+fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{loadCsv(ev.target.result,false);uploadToServer(f);};r.readAsText(f,'windows-1252');}});
 document.getElementById('btn-reset').addEventListener('click',()=>{document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
 document.getElementById('btn-add-week').addEventListener('click',()=>fiA.click());
 fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,true);r.readAsText(f,'windows-1252');}});
