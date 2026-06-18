@@ -24,6 +24,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Link href="/opportunites" className="rounded-md px-3 py-1.5 hover:bg-slate-100">
                 Opportunités
               </Link>
+              <a href="/pipeline.html" className="rounded-md px-3 py-1.5 hover:bg-slate-100">
+                Pipeline détaillé
+              </a>
               <Link
                 href="/import"
                 className="ml-2 rounded-md bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500"

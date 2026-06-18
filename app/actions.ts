@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { replaceAll } from '@/lib/store';
+import { replaceAll, saveRawCsv } from '@/lib/store';
 import { parseBoondCsv, decodeUpload } from '@/lib/boond-import';
 
 export async function importCsv(formData: FormData) {
@@ -19,6 +19,7 @@ export async function importCsv(formData: FormData) {
   }
 
   const n = await replaceAll(result.opportunities);
+  await saveRawCsv(text); // conserve le CSV brut pour le dashboard détaillé
   revalidatePath('/');
   revalidatePath('/opportunites');
   redirect(`/?imported=${n}&ignored=${result.ignored}`);

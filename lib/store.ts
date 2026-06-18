@@ -16,6 +16,7 @@ export interface Filters {
 
 const USE_DB = !!process.env.DATABASE_URL;
 const DATA_FILE = path.join(process.cwd(), '.data', 'opportunities.json');
+const RAW_FILE = path.join(process.cwd(), '.data', 'raw.csv');
 
 const g = globalThis as unknown as {
   __pool?: Pool;
@@ -48,11 +49,20 @@ function persist(items: Opportunity[]) {
 }
 
 // ---------- Backend PostgreSQL ----------
+function needsSsl(url: string): boolean {
+  if (process.env.PGSSL === 'disable') return false;
+  if (process.env.PGSSL === 'require') return true;
+  // Connexions internes / locales : pas de SSL (ex. Railway *.railway.internal, localhost).
+  if (/railway\.internal|localhost|127\.0\.0\.1|sslmode=disable/.test(url)) return false;
+  return true; // hébergeurs distants (Neon, Supabase, ...) : SSL requis
+}
+
 function pool(): Pool {
   if (!g.__pool) {
+    const url = process.env.DATABASE_URL ?? '';
     g.__pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+      connectionString: url,
+      ssl: needsSsl(url) ? { rejectUnauthorized: false } : false,
     });
   }
   return g.__pool;
@@ -77,6 +87,7 @@ async function ensureSchema(): Promise<void> {
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
         );
+        CREATE TABLE IF NOT EXISTS app_meta (key text PRIMARY KEY, value text);
       `)
       .then(() => undefined);
   }
@@ -161,6 +172,39 @@ export async function replaceAll(items: OpportunityInput[]): Promise<number> {
   g.__mem = items.map((o) => ({ ...o, createdAt: now, updatedAt: now }));
   persist(g.__mem);
   return g.__mem.length;
+}
+
+/** Conserve le CSV brut du dernier import (pour le dashboard détaillé). */
+export async function saveRawCsv(text: string): Promise<void> {
+  if (USE_DB) {
+    await ensureSchema();
+    await pool().query(
+      `INSERT INTO app_meta(key, value) VALUES('raw_csv', $1)
+       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      [text],
+    );
+    return;
+  }
+  try {
+    fs.mkdirSync(path.dirname(RAW_FILE), { recursive: true });
+    fs.writeFileSync(RAW_FILE, text, 'utf-8');
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function getRawCsv(): Promise<string | null> {
+  if (USE_DB) {
+    await ensureSchema();
+    const { rows } = await pool().query(`SELECT value FROM app_meta WHERE key = 'raw_csv'`);
+    return rows[0]?.value ?? null;
+  }
+  try {
+    if (fs.existsSync(RAW_FILE)) return fs.readFileSync(RAW_FILE, 'utf-8');
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 export function backendName(): string {
