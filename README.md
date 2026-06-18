@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# mon-app — Pilotage commercial d’agence
 
-## Getting Started
+Application Next.js de suivi des opportunités commerciales et du CA prévisionnel,
+**alimentée par import CSV depuis BoondManager** (export « Besoins »).
 
-First, run the development server:
+- Dashboard : pipeline pondéré (montant × probabilité) par **pôle / commercial / secteur**,
+  avancement par étape, CA gagné, objectif agence.
+- Données en **lecture seule** : la source de vérité est BoondManager. On réimporte pour mettre à jour.
+
+## Démarrage rapide
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir http://localhost:3000. Sans base configurée, l’app utilise un **fichier local**
+(`.data/opportunities.json`) ; au premier lancement, un petit jeu de démonstration s’affiche.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> Le mot de passe est **désactivé** tant que `AUTH_USER` / `AUTH_PASSWORD` ne sont pas définis.
+> Pratique en local. En production, définir ces deux variables active la protection.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Importer ses données BoondManager
 
-## Learn More
+1. Dans BoondManager, exporter la liste **Besoins** au format CSV.
+2. Dans l’app : menu **« Importer un CSV »**, choisir le fichier, valider.
+3. L’import **remplace l’intégralité** des données. L’encodage Latin-1 de Boond est géré automatiquement.
 
-To learn more about Next.js, take a look at the following resources:
+Colonnes lues : Titre, Société - Nom, Pôle, Responsable manager, Domaine d’intervention,
+CA Envisagé HT, Pondération, Date de clôture, État, Référence interne.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Avec PostgreSQL (Supabase / Neon)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Pour des données partagées et persistantes en équipe, voir **[SETUP.md](./SETUP.md)**.
+Définir `DATABASE_URL` suffit : l’app bascule automatiquement sur Postgres.
 
-## Deploy on Vercel
+## Tests
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm test    # calculs de pondération, couche de données, et parsing de l’export Boond
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## À venir
+
+- CA réalisé par secteur / commercial et suivi agence vs objectifs.
+- Suivi des impayés et des encours.
