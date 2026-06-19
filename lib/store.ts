@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Opportunity, OpportunityInput, Etape } from './domain';
 import { SEED_OPPORTUNITIES } from './seed-data';
+import { Snapshot, SnapshotMeta, metaOf } from './snapshots';
 
 export interface Filters {
   pole?: string;
@@ -17,6 +18,7 @@ export interface Filters {
 const USE_DB = !!process.env.DATABASE_URL;
 const DATA_FILE = path.join(process.cwd(), '.data', 'opportunities.json');
 const RAW_FILE = path.join(process.cwd(), '.data', 'raw.csv');
+const SNAP_DIR = path.join(process.cwd(), '.data', 'snapshots');
 
 const g = globalThis as unknown as {
   __pool?: Pool;
@@ -88,6 +90,17 @@ async function ensureSchema(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now()
         );
         CREATE TABLE IF NOT EXISTS app_meta (key text PRIMARY KEY, value text);
+        CREATE TABLE IF NOT EXISTS snapshots (
+          id text PRIMARY KEY,
+          taken_at timestamptz NOT NULL,
+          count integer NOT NULL DEFAULT 0,
+          ouvertes integer NOT NULL DEFAULT 0,
+          brut numeric(14,2) NOT NULL DEFAULT 0,
+          pondere numeric(14,2) NOT NULL DEFAULT 0,
+          gagne numeric(14,2) NOT NULL DEFAULT 0,
+          perdu numeric(14,2) NOT NULL DEFAULT 0,
+          payload jsonb NOT NULL
+        );
       `)
       .then(() => undefined);
   }
@@ -205,6 +218,93 @@ export async function getRawCsv(): Promise<string | null> {
     /* ignore */
   }
   return null;
+}
+
+// ---------- Historique des imports (snapshots) ----------
+function snapToRow(r: any): SnapshotMeta {
+  return {
+    id: r.id,
+    takenAt: new Date(r.taken_at).toISOString(),
+    count: Number(r.count),
+    ouvertes: Number(r.ouvertes),
+    brut: Number(r.brut),
+    pondere: Number(r.pondere),
+    gagne: Number(r.gagne),
+    perdu: Number(r.perdu),
+  };
+}
+
+/** Enregistre un snapshot daté de l'état importé. */
+export async function saveSnapshot(snap: Snapshot): Promise<void> {
+  if (USE_DB) {
+    await ensureSchema();
+    await pool().query(
+      `INSERT INTO snapshots (id, taken_at, count, ouvertes, brut, pondere, gagne, perdu, payload)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        snap.id,
+        snap.takenAt,
+        snap.count,
+        snap.ouvertes,
+        snap.brut,
+        snap.pondere,
+        snap.gagne,
+        snap.perdu,
+        JSON.stringify({ opportunities: snap.opportunities }),
+      ],
+    );
+    return;
+  }
+  try {
+    fs.mkdirSync(SNAP_DIR, { recursive: true });
+    fs.writeFileSync(path.join(SNAP_DIR, `${snap.id}.json`), JSON.stringify(snap), 'utf-8');
+  } catch {
+    /* lecture seule : on n'historise pas, sans bloquer l'import */
+  }
+}
+
+/** Liste les métadonnées des snapshots, du plus ancien au plus récent. */
+export async function listSnapshotMetas(): Promise<SnapshotMeta[]> {
+  if (USE_DB) {
+    await ensureSchema();
+    const { rows } = await pool().query(
+      'SELECT id, taken_at, count, ouvertes, brut, pondere, gagne, perdu FROM snapshots ORDER BY taken_at ASC',
+    );
+    return rows.map(snapToRow);
+  }
+  try {
+    if (!fs.existsSync(SNAP_DIR)) return [];
+    const metas = fs
+      .readdirSync(SNAP_DIR)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => {
+        const snap = JSON.parse(fs.readFileSync(path.join(SNAP_DIR, f), 'utf-8')) as Snapshot;
+        return metaOf(snap);
+      });
+    return metas.sort((a, b) => a.takenAt.localeCompare(b.takenAt));
+  } catch {
+    return [];
+  }
+}
+
+/** Charge un snapshot complet (avec le détail des opportunités). */
+export async function getSnapshot(id: string): Promise<Snapshot | null> {
+  if (USE_DB) {
+    await ensureSchema();
+    const { rows } = await pool().query('SELECT * FROM snapshots WHERE id = $1', [id]);
+    if (!rows[0]) return null;
+    const meta = snapToRow(rows[0]);
+    const payload = rows[0].payload as { opportunities: Opportunity[] };
+    return { ...meta, opportunities: payload?.opportunities ?? [] };
+  }
+  try {
+    const file = path.join(SNAP_DIR, `${id}.json`);
+    if (!fs.existsSync(file)) return null;
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as Snapshot;
+  } catch {
+    return null;
+  }
 }
 
 export function backendName(): string {

@@ -1,11 +1,7 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return {
-      beforeFiles: [{ source: '/', destination: '/pipeline.html' }],
-    };
-  },
+  /* config options here */
 };
 
 export default nextConfig;
