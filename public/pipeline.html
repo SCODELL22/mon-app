@@ -209,6 +209,7 @@ select{appearance:auto;}
   </div>
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
+    <button class="tab-btn" data-tab="objectifs">Objectifs</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
     <button class="tab-btn" data-tab="perdues">Perdues</button>
@@ -257,6 +258,28 @@ select{appearance:auto;}
         <div class="card"><div class="ct">Opportunités les plus anciennes</div>
           <table class="dt"><colgroup><col style="width:34%"><col style="width:22%"><col style="width:26%"><col style="width:18%"></colgroup>
           <thead><tr><th>Opportunité</th><th>Client</th><th>Créée le</th><th>État</th></tr></thead><tbody id="tb-old"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <!-- TAB OBJECTIFS -->
+  <div id="tab-objectifs" class="tab-panel">
+    <div class="content">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">Objectif agence</div><div class="kpi-val" id="ob-quota">—</div><div class="kpi-sub">somme des quotas</div></div>
+        <div class="kpi"><div class="kpi-lbl">CA réalisé</div><div class="kpi-val" id="ob-gagne">—</div><div class="kpi-sub" id="ob-prog">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Reste à faire</div><div class="kpi-val" id="ob-reste">—</div><div class="kpi-sub">objectif − réalisé</div></div>
+        <div class="kpi y"><div class="kpi-lbl">Atterrissage</div><div class="kpi-val" id="ob-att">—</div><div class="kpi-sub">gagné + pondéré</div></div>
+        <div class="kpi"><div class="kpi-lbl">Couverture agence</div><div class="kpi-val" id="ob-couv" style="font-size:1rem;padding-top:6px;">—</div><div class="kpi-sub">brut ÷ reste · cible 3×</div></div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Objectifs &amp; couverture par commercial <span style="font-weight:400;color:var(--gd);font-size:11px;">— saisissez l'objectif annuel ; enregistré sur ce navigateur</span></div>
+        <table class="dt">
+          <colgroup><col style="width:18%"><col style="width:15%"><col style="width:14%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:9%"><col style="width:8%"></colgroup>
+          <thead><tr><th>Commercial</th><th>Objectif annuel</th><th>Réalisé</th><th>Reste à faire</th><th>Pondéré</th><th>Atterrissage</th><th>Écart</th><th>Couverture</th></tr></thead>
+          <tbody id="tb-obj"></tbody>
+          <tfoot id="tf-obj"></tfoot>
+        </table>
+        <div class="chart-hint">Couverture = pipeline brut ouvert ÷ reste à faire. Vert ≥ 3× · jaune ≥ 1× · rouge &lt; 1×.</div>
       </div>
     </div>
   </div>
@@ -1089,6 +1112,61 @@ function buildQualite(rows){
     r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td>${getPole(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
     'Aucune 🎉');
 }
+/* ══ TAB OBJECTIFS ════════════════════════════════════════ */
+const COUV_CIBLE=3;
+let OBJ_ROWS=[];
+function getObjectifs(){try{return JSON.parse(localStorage.getItem('ippon_objectifs')||'{}');}catch(e){return{};}}
+function setObjectif(comm,val){const o=getObjectifs();if(val>0)o[comm]=val;else delete o[comm];localStorage.setItem('ippon_objectifs',JSON.stringify(o));}
+function onQuotaChange(el){setObjectif(el.dataset.comm,pn(el.value));buildObjectifs(OBJ_ROWS);}
+function couvBadge(c){if(c===null)return '<span class="bd bd-green">objectif atteint</span>';const cls=c>=COUV_CIBLE?'bd-green':c>=1?'bd-yellow':'bd-red';return `<span class="bd ${cls}">${c.toFixed(1)}×</span>`;}
+function ecartCell(e){const col=e>=0?'#004C4C':'#6D0718';const sign=e>0?'+':e<0?'−':'';return `<span style="color:${col};font-weight:700">${sign}${fCA(Math.abs(e))}</span>`;}
+function buildObjectifs(rows){
+  OBJ_ROWS=rows;
+  const quotas=getObjectifs();
+  const gag=rows.filter(r=>GAG.includes(getEtat(r)));
+  const enc=rows.filter(r=>ENC.includes(getEtat(r)));
+  const comms=[...new Set(rows.map(getComm))].filter(c=>c&&c!=='Inconnu');
+  Object.keys(quotas).forEach(c=>{if(!comms.includes(c))comms.push(c);});
+  const data=comms.map(c=>{
+    const quota=pn(String(quotas[c]!=null?quotas[c]:0));
+    const gagne=gag.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
+    const brut=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
+    const pondere=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCAP(r),0);
+    const reste=Math.max(0,quota-gagne);
+    const att=gagne+pondere;
+    return {c,quota,gagne,brut,pondere,reste,att,ecart:att-quota,prog:quota>0?gagne/quota*100:0,couv:reste>0?brut/reste:null};
+  }).sort((a,b)=>b.quota-a.quota||b.att-a.att);
+  const Tgagne=gag.reduce((s,r)=>s+getCA(r),0);
+  const Tbrut=enc.reduce((s,r)=>s+getCA(r),0);
+  const Tpondere=enc.reduce((s,r)=>s+getCAP(r),0);
+  const Tquota=data.reduce((s,d)=>s+d.quota,0);
+  const Treste=Math.max(0,Tquota-Tgagne);const Tatt=Tgagne+Tpondere;const Tcouv=Treste>0?Tbrut/Treste:null;
+  document.getElementById('ob-quota').textContent=fCA(Tquota);
+  document.getElementById('ob-gagne').textContent=fCA(Tgagne);
+  document.getElementById('ob-prog').textContent=Tquota>0?Math.round(Tgagne/Tquota*100)+'% de l\'objectif':'définissez les quotas';
+  document.getElementById('ob-reste').textContent=fCA(Treste);
+  document.getElementById('ob-att').textContent=fCA(Tatt);
+  document.getElementById('ob-couv').innerHTML=couvBadge(Tcouv);
+  const tb=document.getElementById('tb-obj');tb.innerHTML='';
+  data.forEach(d=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:600">${d.c}</td>`+
+      `<td><input type="number" min="0" step="10000" value="${d.quota||''}" data-comm="${d.c.replace(/"/g,'&quot;')}" onchange="onQuotaChange(this)" placeholder="—" style="width:118px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
+      `<td style="font-weight:700;color:#004C4C">${fCA(d.gagne)} <span style="font-size:10px;color:#B0B0B0;font-weight:400">${d.quota>0?Math.round(d.prog)+'%':''}</span></td>`+
+      `<td>${fCA(d.reste)}</td>`+
+      `<td style="color:${BL};font-weight:600">${fCA(d.pondere)}</td>`+
+      `<td style="font-weight:700">${fCA(d.att)}</td>`+
+      `<td>${ecartCell(d.ecart)}</td>`+
+      `<td>${couvBadge(d.couv)}</td>`;
+    tb.appendChild(tr);
+  });
+  const tf=document.getElementById('tf-obj');
+  tf.innerHTML=`<tr style="border-top:2px solid var(--gl);font-weight:700">`+
+    `<td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tquota)}</td>`+
+    `<td style="color:#004C4C">${fCA(Tgagne)}</td><td>${fCA(Treste)}</td>`+
+    `<td style="color:${BL}">${fCA(Tpondere)}</td><td>${fCA(Tatt)}</td>`+
+    `<td>${ecartCell(Tatt-Tquota)}</td><td>${couvBadge(Tcouv)}</td></tr>`;
+}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
 function loadCsv(text,isAdd){
   const rows=parseCsv(text);
@@ -1109,7 +1187,7 @@ function loadCsv(text,isAdd){
     document.getElementById('opp-count').textContent=rows.length+' opportunités';
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildObjectifs(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
