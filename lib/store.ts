@@ -6,9 +6,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Opportunity, OpportunityInput, Etape } from './domain';
 import { SEED_OPPORTUNITIES } from './seed-data';
-import { Snapshot, SnapshotMeta, metaOf } from './snapshots';
-import { FacturationRow, FacturationSnapshot } from './facturation';
-import { SEED_FACTURATION, SEED_FACTURATION_PERIODE } from './facturation-seed';
 
 export interface Filters {
   pole?: string;
@@ -20,23 +17,11 @@ export interface Filters {
 const USE_DB = !!process.env.DATABASE_URL;
 const DATA_FILE = path.join(process.cwd(), '.data', 'opportunities.json');
 const RAW_FILE = path.join(process.cwd(), '.data', 'raw.csv');
-const SNAP_DIR = path.join(process.cwd(), '.data', 'snapshots');
-const FACT_FILE = path.join(process.cwd(), '.data', 'facturation.json');
-const FACT_SNAP_DIR = path.join(process.cwd(), '.data', 'fact-snapshots');
-
-export interface FacturationMeta {
-  id: string;
-  takenAt: string;
-  periode: string | null;
-  totalCa: number;
-  totalMarge: number;
-}
 
 const g = globalThis as unknown as {
   __pool?: Pool;
   __mem?: Opportunity[];
   __schemaReady?: Promise<void>;
-  __fact?: FacturationRow[];
 };
 
 // ---------- Backend fichier / mémoire ----------
@@ -66,20 +51,10 @@ function persist(items: Opportunity[]) {
 // ---------- Backend PostgreSQL ----------
 function needsSsl(url: string): boolean {
   if (process.env.PGSSL === 'disable') return false;
-  if (process.env.PGSSL === 'require' || process.env.PGSSL === 'no-verify') return true;
+  if (process.env.PGSSL === 'require') return true;
   // Connexions internes / locales : pas de SSL (ex. Railway *.railway.internal, localhost).
   if (/railway\.internal|localhost|127\.0\.0\.1|sslmode=disable/.test(url)) return false;
   return true; // hébergeurs distants (Neon, Supabase, ...) : SSL requis
-}
-
-function sslConfig(url: string): false | { rejectUnauthorized: boolean; ca?: string } {
-  if (!needsSsl(url)) return false;
-  // Par défaut on VÉRIFIE le certificat du serveur (protège contre le MITM).
-  // - PGSSL=no-verify : opt-out explicite (uniquement si certificat self-signed connu).
-  // - PGSSL_CA : certificat racine personnalisé (PEM) si l'hébergeur en fournit un.
-  const rejectUnauthorized = process.env.PGSSL !== 'no-verify';
-  const ca = process.env.PGSSL_CA;
-  return ca ? { rejectUnauthorized, ca } : { rejectUnauthorized };
 }
 
 function pool(): Pool {
@@ -87,7 +62,7 @@ function pool(): Pool {
     const url = process.env.DATABASE_URL ?? '';
     g.__pool = new Pool({
       connectionString: url,
-      ssl: sslConfig(url),
+      ssl: needsSsl(url) ? { rejectUnauthorized: false } : false,
     });
   }
   return g.__pool;
@@ -113,31 +88,6 @@ async function ensureSchema(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now()
         );
         CREATE TABLE IF NOT EXISTS app_meta (key text PRIMARY KEY, value text);
-        CREATE TABLE IF NOT EXISTS snapshots (
-          id text PRIMARY KEY,
-          taken_at timestamptz NOT NULL,
-          count integer NOT NULL DEFAULT 0,
-          ouvertes integer NOT NULL DEFAULT 0,
-          brut numeric(14,2) NOT NULL DEFAULT 0,
-          pondere numeric(14,2) NOT NULL DEFAULT 0,
-          gagne numeric(14,2) NOT NULL DEFAULT 0,
-          perdu numeric(14,2) NOT NULL DEFAULT 0,
-          payload jsonb NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS facturation (
-          client text PRIMARY KEY,
-          commercial text NOT NULL DEFAULT '',
-          ca numeric(14,2) NOT NULL DEFAULT 0,
-          marge numeric(14,2) NOT NULL DEFAULT 0
-        );
-        CREATE TABLE IF NOT EXISTS facturation_snapshots (
-          id text PRIMARY KEY,
-          taken_at timestamptz NOT NULL,
-          periode text,
-          total_ca numeric(14,2) NOT NULL DEFAULT 0,
-          total_marge numeric(14,2) NOT NULL DEFAULT 0,
-          payload jsonb NOT NULL
-        );
       `)
       .then(() => undefined);
   }
@@ -202,21 +152,11 @@ export async function replaceAll(items: OpportunityInput[]): Promise<number> {
     try {
       await client.query('BEGIN');
       await client.query('TRUNCATE opportunities');
-      // INSERT par lots (multi-rows) : limite le nombre d'aller-retours SQL.
-      const COLS = 11;
-      const CHUNK = 500; // 500 lignes * 11 params = 5500 < limite 65535 de pg
-      for (let start = 0; start < items.length; start += CHUNK) {
-        const slice = items.slice(start, start + CHUNK);
-        const values: unknown[] = [];
-        const tuples = slice.map((o, i) => {
-          const b = i * COLS;
-          values.push(o.id, o.nom, o.client, o.pole, o.commercial, o.secteur, o.montant, o.probabilite, o.etape, o.dateCloturePrev, o.notes);
-          return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11})`;
-        });
+      for (const o of items) {
         await client.query(
           `INSERT INTO opportunities (id, nom, client, pole, commercial, secteur, montant, probabilite, etape, date_cloture_prev, notes)
-           VALUES ${tuples.join(',')}`,
-          values,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [o.id, o.nom, o.client, o.pole, o.commercial, o.secteur, o.montant, o.probabilite, o.etape, o.dateCloturePrev, o.notes],
         );
       }
       await client.query('COMMIT');
@@ -267,223 +207,6 @@ export async function getRawCsv(): Promise<string | null> {
   return null;
 }
 
-// ---------- Historique des imports (snapshots) ----------
-function snapToRow(r: any): SnapshotMeta {
-  return {
-    id: r.id,
-    takenAt: new Date(r.taken_at).toISOString(),
-    count: Number(r.count),
-    ouvertes: Number(r.ouvertes),
-    brut: Number(r.brut),
-    pondere: Number(r.pondere),
-    gagne: Number(r.gagne),
-    perdu: Number(r.perdu),
-  };
-}
-
-/** Enregistre un snapshot daté de l'état importé. */
-export async function saveSnapshot(snap: Snapshot): Promise<void> {
-  if (USE_DB) {
-    await ensureSchema();
-    await pool().query(
-      `INSERT INTO snapshots (id, taken_at, count, ouvertes, brut, pondere, gagne, perdu, payload)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        snap.id,
-        snap.takenAt,
-        snap.count,
-        snap.ouvertes,
-        snap.brut,
-        snap.pondere,
-        snap.gagne,
-        snap.perdu,
-        JSON.stringify({ opportunities: snap.opportunities }),
-      ],
-    );
-    return;
-  }
-  try {
-    fs.mkdirSync(SNAP_DIR, { recursive: true });
-    fs.writeFileSync(path.join(SNAP_DIR, `${snap.id}.json`), JSON.stringify(snap), 'utf-8');
-  } catch {
-    /* lecture seule : on n'historise pas, sans bloquer l'import */
-  }
-}
-
-/** Liste les métadonnées des snapshots, du plus ancien au plus récent. */
-export async function listSnapshotMetas(): Promise<SnapshotMeta[]> {
-  if (USE_DB) {
-    await ensureSchema();
-    const { rows } = await pool().query(
-      'SELECT id, taken_at, count, ouvertes, brut, pondere, gagne, perdu FROM snapshots ORDER BY taken_at ASC',
-    );
-    return rows.map(snapToRow);
-  }
-  try {
-    if (!fs.existsSync(SNAP_DIR)) return [];
-    const metas = fs
-      .readdirSync(SNAP_DIR)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => {
-        const snap = JSON.parse(fs.readFileSync(path.join(SNAP_DIR, f), 'utf-8')) as Snapshot;
-        return metaOf(snap);
-      });
-    return metas.sort((a, b) => a.takenAt.localeCompare(b.takenAt));
-  } catch {
-    return [];
-  }
-}
-
-/** Charge un snapshot complet (avec le détail des opportunités). */
-export async function getSnapshot(id: string): Promise<Snapshot | null> {
-  if (USE_DB) {
-    await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM snapshots WHERE id = $1', [id]);
-    if (!rows[0]) return null;
-    const meta = snapToRow(rows[0]);
-    const payload = rows[0].payload as { opportunities: Opportunity[] };
-    return { ...meta, opportunities: payload?.opportunities ?? [] };
-  }
-  try {
-    const file = path.join(SNAP_DIR, `${id}.json`);
-    if (!fs.existsSync(file)) return null;
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as Snapshot;
-  } catch {
-    return null;
-  }
-}
-
 export function backendName(): string {
   return USE_DB ? 'PostgreSQL' : 'fichier local';
-}
-
-// ====================== Facturation (CA & marge réalisés) ======================
-function loadFact(): FacturationRow[] {
-  if (g.__fact) return g.__fact;
-  try {
-    if (fs.existsSync(FACT_FILE)) {
-      g.__fact = JSON.parse(fs.readFileSync(FACT_FILE, 'utf-8')) as FacturationRow[];
-      return g.__fact;
-    }
-  } catch {
-    /* illisible -> on repart de la démo */
-  }
-  g.__fact = SEED_FACTURATION.map((r) => ({ ...r }));
-  return g.__fact;
-}
-
-function persistFact(rows: FacturationRow[]) {
-  try {
-    fs.mkdirSync(path.dirname(FACT_FILE), { recursive: true });
-    fs.writeFileSync(FACT_FILE, JSON.stringify(rows, null, 2), 'utf-8');
-  } catch {
-    /* lecture seule : on garde la version en mémoire */
-  }
-}
-
-/** Liste la facturation courante (CA & marge par client), triée par CA décroissant. */
-export async function listFacturation(): Promise<FacturationRow[]> {
-  if (USE_DB) {
-    await ensureSchema();
-    const { rows } = await pool().query('SELECT client, commercial, ca, marge FROM facturation ORDER BY ca DESC');
-    return rows.map((r) => ({ client: r.client, commercial: r.commercial, ca: Number(r.ca), marge: Number(r.marge) }));
-  }
-  return [...loadFact()].sort((a, b) => b.ca - a.ca);
-}
-
-/** Remplace l'intégralité de la facturation (import « remplace tout »). */
-export async function replaceFacturation(rows: FacturationRow[]): Promise<number> {
-  if (USE_DB) {
-    await ensureSchema();
-    const client = await pool().connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('TRUNCATE facturation');
-      const CHUNK = 500;
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        const slice = rows.slice(i, i + CHUNK);
-        const values: unknown[] = [];
-        const tuples = slice.map((r, j) => {
-          const b = j * 4;
-          values.push(r.client, r.commercial, r.ca, r.marge);
-          return `($${b + 1},$${b + 2},$${b + 3},$${b + 4})`;
-        });
-        await client.query(
-          `INSERT INTO facturation (client, commercial, ca, marge) VALUES ${tuples.join(',')}
-           ON CONFLICT (client) DO UPDATE SET commercial = excluded.commercial, ca = excluded.ca, marge = excluded.marge`,
-          values,
-        );
-      }
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
-    return rows.length;
-  }
-  g.__fact = rows.map((r) => ({ ...r }));
-  persistFact(g.__fact);
-  return g.__fact.length;
-}
-
-/** Historise une photo datée de la facturation (socle de l'avancement annuel). */
-export async function saveFacturationSnapshot(snap: FacturationSnapshot): Promise<void> {
-  if (USE_DB) {
-    await ensureSchema();
-    await pool().query(
-      `INSERT INTO facturation_snapshots (id, taken_at, periode, total_ca, total_marge, payload)
-       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
-      [snap.id, snap.takenAt, snap.periode, snap.totalCa, snap.totalMarge, JSON.stringify({ rows: snap.rows })],
-    );
-    return;
-  }
-  try {
-    fs.mkdirSync(FACT_SNAP_DIR, { recursive: true });
-    fs.writeFileSync(path.join(FACT_SNAP_DIR, `${snap.id}.json`), JSON.stringify(snap), 'utf-8');
-  } catch {
-    /* lecture seule : on n'historise pas, sans bloquer l'import */
-  }
-}
-
-const factMetaOf = (s: FacturationSnapshot): FacturationMeta => ({
-  id: s.id,
-  takenAt: s.takenAt,
-  periode: s.periode,
-  totalCa: s.totalCa,
-  totalMarge: s.totalMarge,
-});
-
-/** Métadonnées des snapshots de facturation, du plus ancien au plus récent. */
-export async function listFacturationMetas(): Promise<FacturationMeta[]> {
-  if (USE_DB) {
-    await ensureSchema();
-    const { rows } = await pool().query(
-      'SELECT id, taken_at, periode, total_ca, total_marge FROM facturation_snapshots ORDER BY taken_at ASC',
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      takenAt: new Date(r.taken_at).toISOString(),
-      periode: r.periode,
-      totalCa: Number(r.total_ca),
-      totalMarge: Number(r.total_marge),
-    }));
-  }
-  try {
-    if (!fs.existsSync(FACT_SNAP_DIR)) return [];
-    return fs
-      .readdirSync(FACT_SNAP_DIR)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => factMetaOf(JSON.parse(fs.readFileSync(path.join(FACT_SNAP_DIR, f), 'utf-8')) as FacturationSnapshot))
-      .sort((a, b) => a.takenAt.localeCompare(b.takenAt));
-  } catch {
-    return [];
-  }
-}
-
-/** Période déclarée du dernier import (best effort, pour l'affichage). */
-export function seedFacturationPeriode(): string {
-  return SEED_FACTURATION_PERIODE;
 }
