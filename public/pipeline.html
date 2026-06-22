@@ -210,7 +210,7 @@ select{appearance:auto;}
   </div>
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
-    <button class="tab-btn" data-tab="objectifs">Objectifs</button>
+    <button class="tab-btn" data-tab="performance">Performance</button>
     <button class="tab-btn" data-tab="atterrissage">Atterrissage</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
@@ -263,30 +263,35 @@ select{appearance:auto;}
       </div>
     </div>
   </div>
-  <!-- TAB OBJECTIFS -->
-  <div id="tab-objectifs" class="tab-panel">
+  <!-- TAB PERFORMANCE -->
+  <div id="tab-performance" class="tab-panel">
     <div class="content">
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Objectif agence</div><div class="kpi-val" id="ob-quota">—</div><div class="kpi-sub">somme des quotas</div></div>
-        <div class="kpi"><div class="kpi-lbl">CA réalisé</div><div class="kpi-val" id="ob-gagne">—</div><div class="kpi-sub" id="ob-prog">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Reste à faire</div><div class="kpi-val" id="ob-reste">—</div><div class="kpi-sub">objectif − réalisé</div></div>
-        <div class="kpi y"><div class="kpi-lbl">Atterrissage</div><div class="kpi-val" id="ob-att">—</div><div class="kpi-sub">gagné + pondéré</div></div>
-        <div class="kpi"><div class="kpi-lbl">Couverture agence</div><div class="kpi-val" id="ob-couv" style="font-size:1rem;padding-top:6px;">—</div><div class="kpi-sub">brut ÷ reste · cible 3×</div></div>
+        <div class="kpi g"><div class="kpi-lbl">CA réalisé</div><div class="kpi-val" id="pf-ca">—</div><div class="kpi-sub" id="pf-ca-sub">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Marge</div><div class="kpi-val" id="pf-marge">—</div><div class="kpi-sub" id="pf-marge-sub">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Objectif agence</div><div class="kpi-val" id="pf-obj">—</div><div class="kpi-sub">somme des objectifs</div></div>
+        <div class="kpi y"><div class="kpi-lbl">Avancement</div><div class="kpi-val" id="pf-av">—</div><div class="kpi-sub" id="pf-av-sub">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">vs rythme attendu</div><div class="kpi-val" id="pf-rythme" style="font-size:1.3rem;padding-top:7px;">—</div><div class="kpi-sub" id="pf-rythme-sub">—</div></div>
       </div>
       <div class="card-full">
-        <div class="ct" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Objectifs &amp; couverture par commercial <span style="font-weight:400;color:var(--gd);font-size:11px;">— enregistré sur ce navigateur</span>
-          <span style="margin-left:auto;display:flex;gap:6px;">
-            <button onclick="exportQuotas()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Exporter quotas</button>
-            <button onclick="document.getElementById('imp-quotas').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer</button>
-            <input type="file" id="imp-quotas" accept="application/json,.json" style="display:none" onchange="importQuotas(this)">
+        <div class="ct g">CA réalisé vs objectif par commercial
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <span id="pf-periode" style="font-weight:400;color:var(--gd);font-size:11px;"></span>
+            <button onclick="document.getElementById('imp-fact').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer la facturation</button>
+            <input type="file" id="imp-fact" accept=".csv,text/csv" style="display:none" onchange="importFacturation(this)">
           </span></div>
-        <table class="dt">
-          <colgroup><col style="width:18%"><col style="width:15%"><col style="width:14%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:9%"><col style="width:8%"></colgroup>
-          <thead><tr><th>Commercial</th><th>Objectif annuel</th><th>Réalisé</th><th>Reste à faire</th><th>Pondéré</th><th>Atterrissage</th><th>Écart</th><th>Couverture</th></tr></thead>
-          <tbody id="tb-obj"></tbody>
-          <tfoot id="tf-obj"></tfoot>
+        <div class="chart-wrap" style="height:300px;"><canvas id="ch-perf"></canvas></div>
+        <div class="chart-hint">Barres grises = objectif annuel · barres colorées = CA réalisé (couleur selon l'avancement). Importe l'export « Facturation » (colonnes Client, CA, Marge) pour mettre à jour.</div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Détail par commercial &amp; par client <span style="font-weight:400;color:var(--gd);font-size:11px;">— clique une ligne pour déplier ses comptes · objectif éditable (enregistré sur ce navigateur)</span></div>
+        <table class="dt g">
+          <colgroup><col style="width:23%"><col style="width:14%"><col style="width:13%"><col style="width:23%"><col style="width:15%"><col style="width:12%"></colgroup>
+          <thead><tr><th>Commercial</th><th>Objectif</th><th>CA réalisé</th><th>Avancement</th><th>Marge</th><th>Écart</th></tr></thead>
+          <tbody id="tb-perf"></tbody>
+          <tfoot id="tf-perf"></tfoot>
         </table>
-        <div class="chart-hint">Couverture = pipeline brut ouvert ÷ reste à faire. Vert ≥ 3× · jaune ≥ 1× · rouge &lt; 1×.</div>
+        <div class="chart-hint">Avancement = CA réalisé ÷ objectif. Le trait vertical marque le rythme attendu à date (<span id="pf-pace-lbl">—</span> de l'année écoulée).</div>
       </div>
     </div>
   </div>
@@ -1141,57 +1146,75 @@ const COUV_CIBLE=3;
 let OBJ_ROWS=[];
 function getObjectifs(){try{return JSON.parse(localStorage.getItem('ippon_objectifs')||'{}');}catch(e){return{};}}
 function setObjectif(comm,val){const o=getObjectifs();if(val>0)o[comm]=val;else delete o[comm];localStorage.setItem('ippon_objectifs',JSON.stringify(o));}
-function onQuotaChange(el){setObjectif(el.dataset.comm,pn(el.value));buildObjectifs(OBJ_ROWS);}
+function onQuotaChange(el){setObjectif(el.dataset.comm,pn(el.value));buildPerformance();}
 function exportQuotas(){const data=localStorage.getItem('ippon_objectifs')||'{}';const blob=new Blob([data],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quotas-commerciaux.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
-function importQuotas(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const o=JSON.parse(ev.target.result);if(typeof o!=='object'||Array.isArray(o))throw 0;localStorage.setItem('ippon_objectifs',JSON.stringify(o));buildObjectifs(OBJ_ROWS);alert('Quotas importés.');}catch(e){alert('Fichier de quotas invalide.');}};r.readAsText(f);el.value='';}
+function importQuotas(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const o=JSON.parse(ev.target.result);if(typeof o!=='object'||Array.isArray(o))throw 0;localStorage.setItem('ippon_objectifs',JSON.stringify(o));buildPerformance();alert('Quotas importés.');}catch(e){alert('Fichier de quotas invalide.');}};r.readAsText(f);el.value='';}
 function couvBadge(c){if(c===null)return '<span class="bd bd-green">objectif atteint</span>';const cls=c>=COUV_CIBLE?'bd-green':c>=1?'bd-yellow':'bd-red';return `<span class="bd ${cls}">${c.toFixed(1)}×</span>`;}
 function ecartCell(e){const col=e>=0?'#004C4C':'#6D0718';const sign=e>0?'+':e<0?'−':'';return `<span style="color:${col};font-weight:700">${sign}${fCA(Math.abs(e))}</span>`;}
-function buildObjectifs(rows){
-  OBJ_ROWS=rows;
-  const quotas=getObjectifs();
-  const gag=rows.filter(r=>GAG.includes(getEtat(r)));
-  const enc=rows.filter(r=>ENC.includes(getEtat(r)));
-  const comms=[...new Set(rows.map(getComm))].filter(c=>c&&c!=='Inconnu');
-  Object.keys(quotas).forEach(c=>{if(!comms.includes(c))comms.push(c);});
-  const data=comms.map(c=>{
-    const quota=pn(String(quotas[c]!=null?quotas[c]:0));
-    const gagne=gag.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
-    const brut=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
-    const pondere=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCAP(r),0);
-    const reste=Math.max(0,quota-gagne);
-    const att=gagne+pondere;
-    return {c,quota,gagne,brut,pondere,reste,att,ecart:att-quota,prog:quota>0?gagne/quota*100:0,couv:reste>0?brut/reste:null};
-  }).sort((a,b)=>b.quota-a.quota||b.att-a.att);
-  const Tgagne=gag.reduce((s,r)=>s+getCA(r),0);
-  const Tbrut=enc.reduce((s,r)=>s+getCA(r),0);
-  const Tpondere=enc.reduce((s,r)=>s+getCAP(r),0);
-  const Tquota=data.reduce((s,d)=>s+d.quota,0);
-  const Treste=Math.max(0,Tquota-Tgagne);const Tatt=Tgagne+Tpondere;const Tcouv=Treste>0?Tbrut/Treste:null;
-  document.getElementById('ob-quota').textContent=fCA(Tquota);
-  document.getElementById('ob-gagne').textContent=fCA(Tgagne);
-  document.getElementById('ob-prog').textContent=Tquota>0?Math.round(Tgagne/Tquota*100)+'% de l\'objectif':'définissez les quotas';
-  document.getElementById('ob-reste').textContent=fCA(Treste);
-  document.getElementById('ob-att').textContent=fCA(Tatt);
-  document.getElementById('ob-couv').innerHTML=couvBadge(Tcouv);
-  const tb=document.getElementById('tb-obj');tb.innerHTML='';
-  data.forEach(d=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:600">${d.c}</td>`+
-      `<td><input type="number" min="0" step="10000" value="${d.quota||''}" data-comm="${d.c.replace(/"/g,'&quot;')}" onchange="onQuotaChange(this)" placeholder="—" style="width:118px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
-      `<td style="font-weight:700;color:#004C4C">${fCA(d.gagne)} <span style="font-size:10px;color:#B0B0B0;font-weight:400">${d.quota>0?Math.round(d.prog)+'%':''}</span></td>`+
-      `<td>${fCA(d.reste)}</td>`+
-      `<td style="color:${BL};font-weight:600">${fCA(d.pondere)}</td>`+
-      `<td style="font-weight:700">${fCA(d.att)}</td>`+
-      `<td>${ecartCell(d.ecart)}</td>`+
-      `<td>${couvBadge(d.couv)}</td>`;
+const OBJECTIFS_2026={'Pascal SCODELLARO':6200000,'Xavier BONNET':5550000,'Thomas CIBOULET':4090000,'Rémi FASOLIN':4130000,'Pierre MAHIEUX':3750000,'Caroline LOPES':2000000,'Eliza BAETEMAN':1200000,'Alexandre DE CLIPPELEIR':1110000};
+const CLIENT_COMM={"AGENCE DU SERVICE CIVIQUE":"Eliza BAETEMAN","DNUM (Ministères sociaux)":"Eliza BAETEMAN","FRANCE MEDIA MONDE":"Eliza BAETEMAN","INSEE (ATOS)":"Eliza BAETEMAN","LA FABRIQUE NUMERIQUE DES MINISTERES SOCIAUX":"Eliza BAETEMAN","MINISTERE DE L'INTERIEUR":"Eliza BAETEMAN","OFFICE FRANCAIS BIODIVERSITE":"Eliza BAETEMAN","SMILE":"Eliza BAETEMAN","AGREGIO SOLUTIONS":"Xavier BONNET","EDF - DIGIT - DAOA (Randstad Digital)":"Xavier BONNET","EDF - DST - CSP AS - SAGE / EDF SMARTSIDE":"Xavier BONNET","EDF POWER SOLUTIONS":"Xavier BONNET","EDF – DTEO – DIGIT (Randstad Digital)":"Xavier BONNET","ELECTRICITE DE FRANCE":"Xavier BONNET","ENEDIS CLIFFS PARIS":"Xavier BONNET","ENEDIS NEXUS PARIS":"Xavier BONNET","ENEDIS PRISME PARIS":"Xavier BONNET","RTE Réseau de Transport d'Electricité":"Xavier BONNET","AIR LIQUIDE IT":"Caroline LOPES","ENGIE DIGITAL":"Caroline LOPES","EUROWATT SERVICES":"Caroline LOPES","SAFRAN GROUP (BETEAM)":"Caroline LOPES","SAINT GOBAIN DISTRIBUTION BATIMENT FRANCE":"Caroline LOPES","TOTAL ENERGIES CHARGING SERVICES":"Caroline LOPES","TOTALENERGIES ELECTRICITE ET GAZ FRANCE":"Caroline LOPES","TOTSA TotalEnergies Trading SA":"Caroline LOPES","FAURECIA":"Pierre MAHIEUX","SUEZ IWS":"Pierre MAHIEUX","THALES GLOBAL SERVICES SAS":"Pierre MAHIEUX","CHANEL":"Rémi FASOLIN","FEDERATION FRANCAISE DE TENNIS":"Rémi FASOLIN","FEDERATION FRANCAISE DE VOLLEY":"Rémi FASOLIN","FFEPGV":"Rémi FASOLIN","FFR FEDERATION FRANCAISE DE RUGBY":"Rémi FASOLIN","KERING SA SHARED PARIS":"Rémi FASOLIN","PERNOD RICARD SA":"Rémi FASOLIN","Pernod Ricard":"Rémi FASOLIN","Allianz Technology SAS":"Pascal SCODELLARO","BFORBANK":"Pascal SCODELLARO","BPIFRANCE":"Pascal SCODELLARO","Capital Fund Management":"Pascal SCODELLARO","ORANGE BANK":"Pascal SCODELLARO","SOCIETE GENERALE SA":"Pascal SCODELLARO","JC DECAUX":"Thomas CIBOULET","CRIT SAS":"Thomas CIBOULET","CANAL + TECH":"Thomas CIBOULET","Prudence Créole":"Alexandre DE CLIPPELEIR","Clariane":"Alexandre DE CLIPPELEIR","GIPHAR GROUPE":"Alexandre DE CLIPPELEIR"};
+const FACT_DEFAULT=[["BPIFRANCE",2407096,632710],["CRIT SAS",819477,144374],["JC DECAUX",681600,169631],["FEDERATION FRANCAISE DE TENNIS",670615,111631],["SAFRAN GROUP (BETEAM)",534390,152789],["AIR LIQUIDE IT",520545,126686],["THALES GLOBAL SERVICES SAS",492922,129317],["FAURECIA",409758,63586],["SUEZ IWS",379639,89187],["CHANEL",316700,75478],["AGREGIO SOLUTIONS",265728,40682],["VILLE PARTICIPATIONS",263675,37655],["KERING SA SHARED PARIS",245385,53354],["Capital Fund Management",234160,49912],["GIPHAR GROUPE",228250,54546],["ELECTRICITE DE FRANCE",218266,45592],["FFR FEDERATION FRANCAISE DE RUGBY",204515,29353],["ENEDIS NEXUS PARIS",167935,32913],["ENEDIS CLIFFS PARIS",160931,46621],["EDF POWER SOLUTIONS",148508,23321],["FRANCE MEDIA MONDE",124905,9664],["CANAL + TECH",110833,11717],["INSEE (ATOS)",99408,44171],["Clariane",97200,19440],["ENEDIS PRISME PARIS",94650,20945],["TOTSA TotalEnergies Trading SA",88205,16802],["Crédit Mutuel Leasing",84600,84600],["Allianz Technology SAS",63315,19482],["ENGIE DIGITAL",60460,13580],["BFORBANK",58320,12467],["ORANGE BANK",58130,11114],["PERNOD RICARD SA",54750,16715],["BLISCE",53699,53699],["DNUM (Ministères sociaux)",51836,16671],["EDF – DTEO – DIGIT (Randstad Digital)",50358,-12974],["TOTALENERGIES ELECTRICITE ET GAZ FRANCE",41880,3446],["EPIC FOUNDATION FRANCE",38783,38783],["MINISTERE DE L'INTERIEUR",37768,37768],["RTE Réseau de Transport d'Electricité",36990,2153],["Prudence Créole",33750,7203],["EDF - DST - CSP AS - SAGE / EDF SMARTSIDE",31450,8085],["SAINT GOBAIN DISTRIBUTION BATIMENT FRANCE",31050,8184],["IPPON USA",27666,27666],["FFEPGV",27000,1213],["AGENCE DU SERVICE CIVIQUE",26464,7808],["MISSION M",20883,20883],["EDF - DIGIT - DAOA (Randstad Digital)",15524,-438],["OFFICE FRANCAIS BIODIVERSITE",13509,12545],["EUROWATT SERVICES",11409,4210],["MOVE2PLAY",9350,-235],["AMAZON WEB SERVICES EMEA SARL USD",8500,8500],["INFINITE",5967,5967],["LA FABRIQUE NUMERIQUE DES MINISTERES SOCIAUX",2800,1019],["AMAZON WEB SERVICES EMEA SARL EUR",1861,1861],["SMILE",1840,-611],["INTERMED EXPORTATION",1248,414],["CLIENTS - VENTES PC",419,419],["AIRBUS SAS",0,0],["Boond",0,0],["FEDERATION FRANCAISE DE VOLLEY",0,-586],["INOP'S",0,0],["IPPON AUSTRALIA PTY LTD",0,0],["Ippon Innovation SARL",0,0],["Ippon Technologies SAS",0,-140620],["Pernod Ricard",0,0],["SOCIETE GENERALE SA",0,0],["TOTAL ENERGIES CHARGING SERVICES",0,0],["WAAT",0,0]];
+const FACT_PERIODE_DEFAULT='2026-05';
+function getFact(){try{const s=localStorage.getItem('ippon_fact');if(s){const o=JSON.parse(s);if(o&&o.rows&&o.rows.length)return o;}}catch(e){}return {periode:FACT_PERIODE_DEFAULT,rows:FACT_DEFAULT.map(a=>({client:a[0],ca:a[1],marge:a[2]}))};}
+function commOf(c){return CLIENT_COMM[(c||'').trim()]||'Non attribué';}
+function parseFactCsv(text){
+  const lines=text.replace(/^﻿/,'').split('\n').filter(l=>l.trim());
+  if(lines.length<2)return null;
+  const sep=lines[0].includes(';')?';':',';
+  const hdr=lines[0].split(sep).map(h=>h.replace(/^"|"$/g,'').trim().toLowerCase());
+  const iCli=hdr.findIndex(h=>/client|soci|compte/.test(h));
+  let iCa=hdr.findIndex(h=>h==='ca');if(iCa<0)iCa=hdr.findIndex(h=>/chiffre|ca ht|ca facture|ca\b/.test(h));
+  const iMa=hdr.findIndex(h=>/marge/.test(h));
+  if(iCli<0)return null;
+  const m={};
+  for(let i=1;i<lines.length;i++){const v=smartSplit(lines[i],sep).map(x=>x.replace(/^"|"$/g,'').trim());const cli=(v[iCli]||'').trim();if(!cli)continue;const ca=iCa>=0?pn(v[iCa]):0;const ma=iMa>=0?pn(v[iMa]):0;if(!m[cli])m[cli]={client:cli,ca:0,marge:0};m[cli].ca+=ca;m[cli].marge+=ma;}
+  const out=Object.values(m);return out.length?out:null;
+}
+function importFacturation(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const rows=parseFactCsv(ev.target.result);if(!rows){alert('Fichier illisible. Colonnes attendues : Client, CA, Marge.');return;}localStorage.setItem('ippon_fact',JSON.stringify({periode:null,rows}));buildPerformance();alert(rows.length+' clients importés.');};r.readAsText(f);el.value='';}
+function yearFrac(){const n=new Date();const s=new Date(n.getFullYear(),0,1);const e=new Date(n.getFullYear()+1,0,1);return (n-s)/(e-s);}
+function pfPeriode(p){if(!p)return 'à date';const m=p.match(/^(\d{4})-(\d{2})$/);if(!m)return p;return new Date(+m[1],+m[2]-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
+function pfState(av,pace){if(av>=100)return['#004C4C','Objectif atteint'];if(av>=pace)return['#00CCA5','Dans les temps'];if(av>=pace*0.8)return['#FF8A00','À surveiller'];return['#FF4C41','En retard'];}
+function pfEcart(v){const x=Math.round(v);const pos=x>=0;return `<span class="bd ${pos?'bd-green':'bd-red'}">${pos?'+':'−'}${fCA(Math.abs(x))}</span>`;}
+let PF_OPEN=null;
+function buildPerformance(){
+  const fact=getFact();const quotas=getObjectifs();const pace=yearFrac();
+  const objOf=c=>{const q=quotas[c];return (q!=null&&q!=='')?pn(String(q)):(OBJECTIFS_2026[c]||0);};
+  const G={};
+  fact.rows.forEach(r=>{const c=commOf(r.client);if(!G[c])G[c]={ca:0,marge:0,clients:[]};G[c].ca+=r.ca;G[c].marge+=r.marge;G[c].clients.push({client:r.client,ca:r.ca,marge:r.marge});});
+  Object.keys(OBJECTIFS_2026).forEach(c=>{if(!G[c])G[c]={ca:0,marge:0,clients:[]};});
+  const comms=Object.keys(G).filter(c=>c!=='Non attribué').map(c=>{const o=objOf(c),g=G[c];return {c,obj:o,ca:g.ca,marge:g.marge,mpct:g.ca>0?g.marge/g.ca:0,ecart:g.ca-o,av:o>0?g.ca/o*100:0,clients:g.clients.sort((a,b)=>b.ca-a.ca)};}).sort((a,b)=>b.obj-a.obj||b.ca-a.ca);
+  const na=G['Non attribué'];
+  const Tobj=comms.reduce((s,d)=>s+d.obj,0),Tca=comms.reduce((s,d)=>s+d.ca,0)+(na?na.ca:0),Tma=comms.reduce((s,d)=>s+d.marge,0)+(na?na.marge:0);
+  const Tav=Tobj>0?Tca/Tobj*100:0,Tryth=Tca-Tobj*pace;
+  const S=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  S('pf-ca',fCA(Tca));S('pf-ca-sub',Math.round(Tav)+"% de l'objectif");
+  S('pf-marge',fCA(Tma));S('pf-marge-sub',(Tca>0?(Tma/Tca*100).toFixed(1).replace('.',','):'0')+'% de marge');
+  S('pf-obj',fCA(Tobj));S('pf-av',Math.round(Tav)+'%');S('pf-av-sub','rythme attendu '+Math.round(pace*100)+'%');
+  const rEl=document.getElementById('pf-rythme');if(rEl){rEl.textContent=(Tryth>=0?'+':'−')+fCA(Math.abs(Tryth));rEl.style.color=Tryth>=0?'#004C4C':'#FF4C41';}
+  S('pf-rythme-sub',Tryth>=0?'en avance':'en retard');S('pf-periode','Facturation '+pfPeriode(fact.periode));
+  const pl=document.getElementById('pf-pace-lbl');if(pl)pl.textContent=Math.round(pace*100)+'%';
+  dch('perf');const ctx=document.getElementById('ch-perf');
+  if(ctx){CH['perf']=new Chart(ctx,{type:'bar',data:{labels:comms.map(d=>d.c.split(' ')[0]),datasets:[
+    {label:'Objectif',data:comms.map(d=>d.obj),backgroundColor:'#E8E8E8',borderRadius:2,categoryPercentage:.72,barPercentage:.92},
+    {label:'CA réalisé',data:comms.map(d=>d.ca),backgroundColor:comms.map(d=>pfState(d.av,pace*100)[0]),borderRadius:2,categoryPercentage:.72,barPercentage:.92}
+  ]},options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fCA(c.raw)}}},scales:SC}});}
+  const tb=document.getElementById('tb-perf');tb.innerHTML='';
+  comms.forEach(d=>{
+    const st=pfState(d.av,pace*100),col=st[0],lbl=st[1];
+    const tr=document.createElement('tr');tr.style.cursor='pointer';
+    tr.innerHTML=`<td style="font-weight:600"><span style="display:inline-block;width:0;height:0;border-left:5px solid var(--gm);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;vertical-align:middle;transform:rotate(${PF_OPEN===d.c?90:0}deg)"></span>${d.c}</td>`+
+      `<td><input type="number" min="0" step="10000" value="${d.obj||''}" data-comm="${d.c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="onQuotaChange(this)" placeholder="—" style="width:108px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
+      `<td style="font-weight:700;color:#004C4C">${fCA(d.ca)}</td>`+
+      `<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:var(--gl);border-radius:4px;overflow:hidden;position:relative"><div style="height:100%;width:${Math.min(100,d.av)}%;background:${col}"></div><div style="position:absolute;top:-1px;height:9px;width:2px;background:var(--deep);left:${Math.min(100,pace*100)}%"></div></div><span style="font-size:11px;font-weight:700;color:${col}">${Math.round(d.av)}%</span></div><div style="font-size:10px;color:var(--gm);margin-top:2px">${lbl}</div></td>`+
+      `<td>${fCA(d.marge)} <span style="font-size:10px;color:var(--gm)">${(d.mpct*100).toFixed(1).replace('.',',')}%</span></td>`+
+      `<td>${pfEcart(d.ecart)}</td>`;
+    tr.addEventListener('click',()=>{PF_OPEN=PF_OPEN===d.c?null:d.c;buildPerformance();});
     tb.appendChild(tr);
+    if(PF_OPEN===d.c){d.clients.forEach(cl=>{const cr=document.createElement('tr');cr.style.background='#FAFBFF';cr.innerHTML=`<td style="padding-left:28px;color:var(--gd)">${cl.client}</td><td></td><td style="color:var(--deep)">${fCA(cl.ca)}</td><td><div style="height:5px;background:var(--gl);border-radius:3px;overflow:hidden"><div style="height:100%;width:${d.ca>0?Math.round(cl.ca/d.ca*100):0}%;background:var(--klein)"></div></div></td><td style="color:var(--gd)">${fCA(cl.marge)} <span style="font-size:10px;color:var(--gm)">${cl.ca>0?Math.round(cl.marge/cl.ca*100):0}%</span></td><td></td>`;tb.appendChild(cr);});}
   });
-  const tf=document.getElementById('tf-obj');
-  tf.innerHTML=`<tr style="border-top:2px solid var(--gl);font-weight:700">`+
-    `<td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tquota)}</td>`+
-    `<td style="color:#004C4C">${fCA(Tgagne)}</td><td>${fCA(Treste)}</td>`+
-    `<td style="color:${BL}">${fCA(Tpondere)}</td><td>${fCA(Tatt)}</td>`+
-    `<td>${ecartCell(Tatt-Tquota)}</td><td>${couvBadge(Tcouv)}</td></tr>`;
+  const tf=document.getElementById('tf-perf');let naR='';
+  if(na&&na.ca!==0)naR=`<tr style="color:var(--gm)"><td style="font-style:italic">Non attribué</td><td></td><td>${fCA(na.ca)}</td><td></td><td>${fCA(na.marge)}</td><td></td></tr>`;
+  tf.innerHTML=naR+`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tobj)}</td><td style="color:#004C4C">${fCA(Tca)}</td><td>${Math.round(Tav)}%</td><td>${fCA(Tma)} <span style="font-size:10px;color:var(--gm)">${Tca>0?(Tma/Tca*100).toFixed(1).replace('.',','):0}%</span></td><td>${pfEcart(Tca-Tobj)}</td></tr>`;
 }
 /* ══ TAB ATTERRISSAGE TRIMESTRIEL ═════════════════════════ */
 function attCloture(r){return pd(gf(r,'Date de clôture','Date de clôture'));}
@@ -1253,7 +1276,7 @@ function loadCsv(text,isAdd,isRestore){
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildObjectifs(rows);buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildPerformance();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
