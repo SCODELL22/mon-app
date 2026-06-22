@@ -42,11 +42,11 @@ body{background:var(--bg);color:var(--deep);font-family:'Open Sans',Arial,sans-s
 .tb-title{font-family:'Saira Extra Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);}
 .tb-count{font-size:11px;color:rgba(255,255,255,.28);background:rgba(255,255,255,.06);padding:3px 10px;border-radius:20px;}
 .tb-right{display:flex;align-items:center;gap:10px;}
-.wb{font-size:11px;color:rgba(255,255,255,.3);}
+.wb{font-size:12px;color:rgba(255,255,255,.55);}
 .btn-g{font-size:12px;color:rgba(255,255,255,.38);background:none;border:1px solid rgba(255,255,255,.1);border-radius:2px;padding:5px 12px;cursor:pointer;}
 .btn-g:hover{background:rgba(255,255,255,.05);color:#fff;}
 /* TABS */
-.tabs-bar{background:var(--surface);border-bottom:2px solid var(--gl);display:flex;padding:0 2rem;overflow-x:auto;}
+.tabs-bar{background:var(--surface);border-bottom:2px solid var(--gl);display:flex;flex-wrap:wrap;padding:0 2rem;}
 .tab-btn{font-family:'Saira Extra Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gm);background:none;border:none;border-bottom:3px solid transparent;padding:13px 20px;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-2px;white-space:nowrap;}
 .tab-btn:hover{color:var(--klein);}
 .tab-btn.active{color:var(--klein);border-bottom-color:var(--klein);}
@@ -203,6 +203,7 @@ select{appearance:auto;}
       <span class="tb-count" id="opp-count"></span>
     </div>
     <div class="tb-right">
+      <span class="wb" id="data-fresh"></span>
       <span class="wb" id="week-badge"></span>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
     </div>
@@ -273,7 +274,12 @@ select{appearance:auto;}
         <div class="kpi"><div class="kpi-lbl">Couverture agence</div><div class="kpi-val" id="ob-couv" style="font-size:1rem;padding-top:6px;">—</div><div class="kpi-sub">brut ÷ reste · cible 3×</div></div>
       </div>
       <div class="card-full">
-        <div class="ct">Objectifs &amp; couverture par commercial <span style="font-weight:400;color:var(--gd);font-size:11px;">— saisissez l'objectif annuel ; enregistré sur ce navigateur</span></div>
+        <div class="ct" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Objectifs &amp; couverture par commercial <span style="font-weight:400;color:var(--gd);font-size:11px;">— enregistré sur ce navigateur</span>
+          <span style="margin-left:auto;display:flex;gap:6px;">
+            <button onclick="exportQuotas()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Exporter quotas</button>
+            <button onclick="document.getElementById('imp-quotas').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer</button>
+            <input type="file" id="imp-quotas" accept="application/json,.json" style="display:none" onchange="importQuotas(this)">
+          </span></div>
         <table class="dt">
           <colgroup><col style="width:18%"><col style="width:15%"><col style="width:14%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:9%"><col style="width:8%"></colgroup>
           <thead><tr><th>Commercial</th><th>Objectif annuel</th><th>Réalisé</th><th>Reste à faire</th><th>Pondéré</th><th>Atterrissage</th><th>Écart</th><th>Couverture</th></tr></thead>
@@ -1136,6 +1142,8 @@ let OBJ_ROWS=[];
 function getObjectifs(){try{return JSON.parse(localStorage.getItem('ippon_objectifs')||'{}');}catch(e){return{};}}
 function setObjectif(comm,val){const o=getObjectifs();if(val>0)o[comm]=val;else delete o[comm];localStorage.setItem('ippon_objectifs',JSON.stringify(o));}
 function onQuotaChange(el){setObjectif(el.dataset.comm,pn(el.value));buildObjectifs(OBJ_ROWS);}
+function exportQuotas(){const data=localStorage.getItem('ippon_objectifs')||'{}';const blob=new Blob([data],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quotas-commerciaux.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function importQuotas(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const o=JSON.parse(ev.target.result);if(typeof o!=='object'||Array.isArray(o))throw 0;localStorage.setItem('ippon_objectifs',JSON.stringify(o));buildObjectifs(OBJ_ROWS);alert('Quotas importés.');}catch(e){alert('Fichier de quotas invalide.');}};r.readAsText(f);el.value='';}
 function couvBadge(c){if(c===null)return '<span class="bd bd-green">objectif atteint</span>';const cls=c>=COUV_CIBLE?'bd-green':c>=1?'bd-yellow':'bd-red';return `<span class="bd ${cls}">${c.toFixed(1)}×</span>`;}
 function ecartCell(e){const col=e>=0?'#004C4C':'#6D0718';const sign=e>0?'+':e<0?'−':'';return `<span style="color:${col};font-weight:700">${sign}${fCA(Math.abs(e))}</span>`;}
 function buildObjectifs(rows){
@@ -1222,23 +1230,27 @@ function buildAtterrissage(rows){
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>c[0].label,label:c=>' '+c.dataset.label+': '+fCA(c.raw)}}},scales:{x:{...SC.x,stacked:true,grid:{display:false}},y:{...SC.y,stacked:true,ticks:{...SC.y.ticks,callback:v=>fCA(v)}}}}});
 }
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
-function loadCsv(text,isAdd){
+function loadCsv(text,isAdd,isRestore){
   const rows=parseCsv(text);
-  if(rows.length===0){alert('CSV vide ou format non reconnu.');return;}
+  if(rows.length===0){if(!isRestore)alert('CSV vide ou format non reconnu.');return;}
   const dates=rows.map(r=>pd(gf(r,'Date de mise à jour','Date de mise à jour'))).filter(Boolean);
-  const refDate=dates.length>0?new Date(dates.reduce((s,d)=>s+d,0)/dates.length):new Date();
+  const refDate=dates.length>0?new Date(dates.reduce((s,d)=>s+d.getTime(),0)/dates.length):new Date();
   const label=wlabel(refDate);
   const act=rows.filter(r=>ENC.includes(getEtat(r)));
   const caP=act.reduce((s,r)=>s+getCAP(r),0);
   const ponds=act.map(r=>getPond(r)).filter(x=>x>0);
   const avgPond=ponds.length?ponds.reduce((a,b)=>a+b,0)/ponds.length:0;
   const entry={label,caP:Math.round(caP),count:act.length,avgPond};
-  if(!isAdd){history=[entry];}
-  else{const idx=history.findIndex(h=>h.label===label);if(idx>=0)history[idx]=entry;else history.push(entry);}
-  localStorage.setItem('ippon_v6',JSON.stringify(history));
+  if(!isRestore){
+    if(!isAdd){history=[entry];}
+    else{const idx=history.findIndex(h=>h.label===label);if(idx>=0)history[idx]=entry;else history.push(entry);}
+    localStorage.setItem('ippon_v6',JSON.stringify(history));
+  }
   if(!isAdd){
+    if(!isRestore){try{localStorage.setItem('ippon_lastcsv',text);}catch(e){}}
     document.getElementById('week-badge').textContent=label;
     document.getElementById('opp-count').textContent=rows.length+' opportunités';
+    const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
     buildEnCours(rows);buildObjectifs(rows);buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
@@ -1269,16 +1281,20 @@ function uploadToServer(file){
     if(b)b.textContent=(d&&d.count)?('\u2713 '+d.count+' enregistr\u00e9es sur le serveur'):'';
   }).catch(()=>{if(b)b.textContent='';});
 }
+/* Lecture robuste : tente UTF-8 strict, repli windows-1252 (export Boond Latin-1). */
+function readSmart(file,cb){const r=new FileReader();r.onload=ev=>{let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(ev.target.result);}catch(e){txt=new TextDecoder('windows-1252').decode(ev.target.result);}cb(txt);};r.readAsArrayBuffer(file);}
 const dropZone=document.getElementById('drop-zone');const fi=document.getElementById('file-input');const fiA=document.getElementById('file-input-add');
 dropZone.addEventListener('click',()=>fi.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=ev=>{loadCsv(ev.target.result,false);uploadToServer(f);};r.readAsText(f,'windows-1252');}});
-fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{loadCsv(ev.target.result,false);uploadToServer(f);};r.readAsText(f,'windows-1252');}});
-document.getElementById('btn-reset').addEventListener('click',()=>{document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
+fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
+document.getElementById('btn-reset').addEventListener('click',()=>{localStorage.removeItem('ippon_lastcsv');document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
 document.getElementById('btn-add-week').addEventListener('click',()=>fiA.click());
-fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,true);r.readAsText(f,'windows-1252');}});
+fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>loadCsv(txt,true));}});
 document.getElementById('btn-clear-history').addEventListener('click',()=>{history=[];localStorage.removeItem('ippon_v6');buildEvolution([]);});
+/* Auto-chargement du dernier import (sans réécrire l'historique d'évolution). */
+(function(){try{const last=localStorage.getItem('ippon_lastcsv');if(last)loadCsv(last,false,true);}catch(e){}})();
 /* ══ HELPERS MOIS ═════════════════════════════════════════ */
 function monthKey(d){if(!d)return null;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function monthLabel(k){if(!k)return'';const[y,m]=k.split('-');const d=new Date(+y,+m-1,1);return d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
