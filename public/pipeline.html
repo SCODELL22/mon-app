@@ -210,6 +210,7 @@ select{appearance:auto;}
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
     <button class="tab-btn" data-tab="objectifs">Objectifs</button>
+    <button class="tab-btn" data-tab="atterrissage">Atterrissage</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
     <button class="tab-btn" data-tab="perdues">Perdues</button>
@@ -280,6 +281,23 @@ select{appearance:auto;}
           <tfoot id="tf-obj"></tfoot>
         </table>
         <div class="chart-hint">Couverture = pipeline brut ouvert ÷ reste à faire. Vert ≥ 3× · jaune ≥ 1× · rouge &lt; 1×.</div>
+      </div>
+    </div>
+  </div>
+  <!-- TAB ATTERRISSAGE -->
+  <div id="tab-atterrissage" class="tab-panel">
+    <div class="content">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">Ce trimestre — atterrissage</div><div class="kpi-val" id="at-cur">—</div><div class="kpi-sub" id="at-cur-q">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Trimestre prochain — pondéré</div><div class="kpi-val" id="at-next">—</div><div class="kpi-sub" id="at-next-q">—</div></div>
+        <div class="kpi y"><div class="kpi-lbl">En retard (à requalifier)</div><div class="kpi-val" id="at-late">—</div><div class="kpi-sub" id="at-late-sub">date de clôture dépassée</div></div>
+        <div class="kpi"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="at-nod">—</div><div class="kpi-sub" id="at-nod-sub">non projeté</div></div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Atterrissage par trimestre <span style="font-weight:400;color:var(--gd);font-size:11px;">— CA gagné (sécurisé) + pondéré (attendu), selon la date de clôture</span></div>
+        <div id="leg-att" class="leg"></div>
+        <div class="chart-wrap" style="height:300px;"><canvas id="ch-att"></canvas></div>
+        <div class="chart-hint">Les opportunités ouvertes à date dépassée ou sans date ne sont pas projetées dans un trimestre (voir les indicateurs ci-dessus).</div>
       </div>
     </div>
   </div>
@@ -1167,6 +1185,42 @@ function buildObjectifs(rows){
     `<td style="color:${BL}">${fCA(Tpondere)}</td><td>${fCA(Tatt)}</td>`+
     `<td>${ecartCell(Tatt-Tquota)}</td><td>${couvBadge(Tcouv)}</td></tr>`;
 }
+/* ══ TAB ATTERRISSAGE TRIMESTRIEL ═════════════════════════ */
+function attCloture(r){return pd(gf(r,'Date de clôture','Date de clôture'));}
+function quarterKey(d){return d?d.getFullYear()+'-T'+(Math.floor(d.getMonth()/3)+1):null;}
+function quarterLabel(k){const p=k.split('-T');return 'T'+p[1]+' '+p[0];}
+function buildAtterrissage(rows){
+  const today=new Date();today.setHours(0,0,0,0);
+  const Q={};let lateN=0,latePond=0,nodN=0,nodPond=0;
+  const bk=k=>{if(!Q[k])Q[k]={gagne:0,pondere:0,brut:0,count:0};return Q[k];};
+  rows.forEach(r=>{
+    const et=getEtat(r);
+    if(GAG.includes(et)){const k=quarterKey(attCloture(r));if(k)bk(k).gagne+=getCA(r);return;}
+    if(!ENC.includes(et))return;
+    const d=attCloture(r);
+    if(!d){nodN++;nodPond+=getCAP(r);return;}
+    if(d<today){lateN++;latePond+=getCAP(r);return;}
+    const b=bk(quarterKey(d));b.pondere+=getCAP(r);b.brut+=getCA(r);b.count++;
+  });
+  const keys=Object.keys(Q).sort();
+  const curK=quarterKey(today);
+  const cur=Q[curK]||{gagne:0,pondere:0};
+  const nextK=keys.filter(k=>k>curK)[0]||null;
+  document.getElementById('at-cur').textContent=fCA(cur.gagne+cur.pondere);
+  document.getElementById('at-cur-q').textContent=quarterLabel(curK);
+  document.getElementById('at-next').textContent=nextK?fCA(Q[nextK].pondere):'—';
+  document.getElementById('at-next-q').textContent=nextK?quarterLabel(nextK):'aucun trimestre à venir';
+  document.getElementById('at-late').textContent=fCA(latePond);
+  document.getElementById('at-late-sub').textContent=lateN+' opp. ouverte'+(lateN>1?'s':'')+' · à requalifier';
+  document.getElementById('at-nod').textContent=nodN;
+  document.getElementById('at-nod-sub').textContent=fCA(nodPond)+' pondéré · non projeté';
+  document.getElementById('leg-att').innerHTML=`<span class="leg-i"><span class="leg-s" style="background:#004C4C"></span>Gagné (sécurisé)</span><span class="leg-i"><span class="leg-s" style="background:${BL}"></span>Pondéré (attendu)</span>`;
+  dch('att');
+  CH['att']=new Chart(document.getElementById('ch-att'),{type:'bar',data:{labels:keys.map(quarterLabel),datasets:[
+    {label:'Gagné',data:keys.map(k=>Math.round(Q[k].gagne)),backgroundColor:'#004C4C',borderRadius:2,borderWidth:0,stack:'s'},
+    {label:'Pondéré',data:keys.map(k=>Math.round(Q[k].pondere)),backgroundColor:BL,borderRadius:2,borderWidth:0,stack:'s'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>c[0].label,label:c=>' '+c.dataset.label+': '+fCA(c.raw)}}},scales:{x:{...SC.x,stacked:true,grid:{display:false}},y:{...SC.y,stacked:true,ticks:{...SC.y.ticks,callback:v=>fCA(v)}}}}});
+}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
 function loadCsv(text,isAdd){
   const rows=parseCsv(text);
@@ -1187,7 +1241,7 @@ function loadCsv(text,isAdd){
     document.getElementById('opp-count').textContent=rows.length+' opportunités';
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildObjectifs(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildObjectifs(rows);buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
