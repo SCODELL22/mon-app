@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx scripts/seed-db.ts",
-    "test": "tsx scripts/test-aggregations.ts && tsx scripts/test-store.ts && tsx scripts/test-boond.ts"
+    "test": "tsx scripts/test-aggregations.ts && tsx scripts/test-store.ts && tsx scripts/test-boond.ts && tsx scripts/test-snapshots.ts && tsx scripts/test-forecast.ts && tsx scripts/test-objectives.ts"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   },
   "dependencies": {
     "next": "16.2.9",

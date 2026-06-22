@@ -42,11 +42,11 @@ body{background:var(--bg);color:var(--deep);font-family:'Open Sans',Arial,sans-s
 .tb-title{font-family:'Saira Extra Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);}
 .tb-count{font-size:11px;color:rgba(255,255,255,.28);background:rgba(255,255,255,.06);padding:3px 10px;border-radius:20px;}
 .tb-right{display:flex;align-items:center;gap:10px;}
-.wb{font-size:12px;color:rgba(255,255,255,.55);}
+.wb{font-size:11px;color:rgba(255,255,255,.3);}
 .btn-g{font-size:12px;color:rgba(255,255,255,.38);background:none;border:1px solid rgba(255,255,255,.1);border-radius:2px;padding:5px 12px;cursor:pointer;}
 .btn-g:hover{background:rgba(255,255,255,.05);color:#fff;}
 /* TABS */
-.tabs-bar{background:var(--surface);border-bottom:2px solid var(--gl);display:flex;flex-wrap:wrap;padding:0 2rem;}
+.tabs-bar{background:var(--surface);border-bottom:2px solid var(--gl);display:flex;padding:0 2rem;overflow-x:auto;}
 .tab-btn{font-family:'Saira Extra Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gm);background:none;border:none;border-bottom:3px solid transparent;padding:13px 20px;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-2px;white-space:nowrap;}
 .tab-btn:hover{color:var(--klein);}
 .tab-btn.active{color:var(--klein);border-bottom-color:var(--klein);}
@@ -203,15 +203,13 @@ select{appearance:auto;}
       <span class="tb-count" id="opp-count"></span>
     </div>
     <div class="tb-right">
-      <span class="wb" id="data-fresh"></span>
       <span class="wb" id="week-badge"></span>
+      <a class="btn-g" href="/" style="text-decoration:none;">← Retour à l'app</a>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
     </div>
   </div>
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
-    <button class="tab-btn" data-tab="objectifs">Objectifs</button>
-    <button class="tab-btn" data-tab="atterrissage">Atterrissage</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
     <button class="tab-btn" data-tab="perdues">Perdues</button>
@@ -219,7 +217,6 @@ select{appearance:auto;}
     <button class="tab-btn" data-tab="evolution">Évolution</button>
     <button class="tab-btn" data-tab="dynamique">Dynamique mensuelle</button>
     <button class="tab-btn" data-tab="perduesmonth">Perdues par mois</button>
-    <button class="tab-btn" data-tab="qualite">Qualité saisie</button>
   </div>
   <!-- TAB PIPE EN COURS -->
   <div id="tab-encours" class="tab-panel active">
@@ -260,50 +257,6 @@ select{appearance:auto;}
         <div class="card"><div class="ct">Opportunités les plus anciennes</div>
           <table class="dt"><colgroup><col style="width:34%"><col style="width:22%"><col style="width:26%"><col style="width:18%"></colgroup>
           <thead><tr><th>Opportunité</th><th>Client</th><th>Créée le</th><th>État</th></tr></thead><tbody id="tb-old"></tbody></table></div>
-      </div>
-    </div>
-  </div>
-  <!-- TAB OBJECTIFS -->
-  <div id="tab-objectifs" class="tab-panel">
-    <div class="content">
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Objectif agence</div><div class="kpi-val" id="ob-quota">—</div><div class="kpi-sub">somme des quotas</div></div>
-        <div class="kpi"><div class="kpi-lbl">CA réalisé</div><div class="kpi-val" id="ob-gagne">—</div><div class="kpi-sub" id="ob-prog">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Reste à faire</div><div class="kpi-val" id="ob-reste">—</div><div class="kpi-sub">objectif − réalisé</div></div>
-        <div class="kpi y"><div class="kpi-lbl">Atterrissage</div><div class="kpi-val" id="ob-att">—</div><div class="kpi-sub">gagné + pondéré</div></div>
-        <div class="kpi"><div class="kpi-lbl">Couverture agence</div><div class="kpi-val" id="ob-couv" style="font-size:1rem;padding-top:6px;">—</div><div class="kpi-sub">brut ÷ reste · cible 3×</div></div>
-      </div>
-      <div class="card-full">
-        <div class="ct" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Objectifs &amp; couverture par commercial <span style="font-weight:400;color:var(--gd);font-size:11px;">— enregistré sur ce navigateur</span>
-          <span style="margin-left:auto;display:flex;gap:6px;">
-            <button onclick="exportQuotas()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Exporter quotas</button>
-            <button onclick="document.getElementById('imp-quotas').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer</button>
-            <input type="file" id="imp-quotas" accept="application/json,.json" style="display:none" onchange="importQuotas(this)">
-          </span></div>
-        <table class="dt">
-          <colgroup><col style="width:18%"><col style="width:15%"><col style="width:14%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:9%"><col style="width:8%"></colgroup>
-          <thead><tr><th>Commercial</th><th>Objectif annuel</th><th>Réalisé</th><th>Reste à faire</th><th>Pondéré</th><th>Atterrissage</th><th>Écart</th><th>Couverture</th></tr></thead>
-          <tbody id="tb-obj"></tbody>
-          <tfoot id="tf-obj"></tfoot>
-        </table>
-        <div class="chart-hint">Couverture = pipeline brut ouvert ÷ reste à faire. Vert ≥ 3× · jaune ≥ 1× · rouge &lt; 1×.</div>
-      </div>
-    </div>
-  </div>
-  <!-- TAB ATTERRISSAGE -->
-  <div id="tab-atterrissage" class="tab-panel">
-    <div class="content">
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Ce trimestre — atterrissage</div><div class="kpi-val" id="at-cur">—</div><div class="kpi-sub" id="at-cur-q">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Trimestre prochain — pondéré</div><div class="kpi-val" id="at-next">—</div><div class="kpi-sub" id="at-next-q">—</div></div>
-        <div class="kpi y"><div class="kpi-lbl">En retard (à requalifier)</div><div class="kpi-val" id="at-late">—</div><div class="kpi-sub" id="at-late-sub">date de clôture dépassée</div></div>
-        <div class="kpi"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="at-nod">—</div><div class="kpi-sub" id="at-nod-sub">non projeté</div></div>
-      </div>
-      <div class="card-full">
-        <div class="ct">Atterrissage par trimestre <span style="font-weight:400;color:var(--gd);font-size:11px;">— CA gagné (sécurisé) + pondéré (attendu), selon la date de clôture</span></div>
-        <div id="leg-att" class="leg"></div>
-        <div class="chart-wrap" style="height:300px;"><canvas id="ch-att"></canvas></div>
-        <div class="chart-hint">Les opportunités ouvertes à date dépassée ou sans date ne sont pas projetées dans un trimestre (voir les indicateurs ci-dessus).</div>
       </div>
     </div>
   </div>
@@ -537,36 +490,6 @@ select{appearance:auto;}
       </div>
     </div>
   </div>
-  <!-- TAB QUALITÉ DE SAISIE -->
-  <div id="tab-qualite" class="tab-panel">
-    <div class="content">
-      <div style="font-family:'Saira Extra Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--deep);letter-spacing:.04em;text-transform:uppercase;margin-bottom:1.2rem;">Qualité de saisie — opportunités ouvertes</div>
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Opps ouvertes</div><div class="kpi-val" id="q-nb"></div><div class="kpi-sub">hors fermées & internes</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="q-nodate"></div><div class="kpi-sub">à compléter</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Clôture dépassée</div><div class="kpi-val" id="q-overdue"></div><div class="kpi-sub">date passée, encore ouvertes</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Pôle « Business »</div><div class="kpi-val" id="q-biz"></div><div class="kpi-sub">à recatégoriser</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Sans positionnement</div><div class="kpi-val" id="q-nopos"></div><div class="kpi-sub">Pos. Actif = 0</div></div>
-      </div>
-      <div class="card-full"><div class="ct">Ancienneté des opportunités ouvertes — par mois de création</div>
-        <div class="chart-wrap" id="wrap-q-age" style="height:300px;"><canvas id="ch-q-age" style="cursor:pointer;"></canvas></div>
-        <div class="chart-hint">De la plus ancienne (gauche) à la plus récente — cliquez une barre pour le détail</div></div>
-      <div class="card-full"><div class="ct r">Besoins en pôle « Business development » — à corriger (avec le commercial)</div>
-        <table class="dt r"><colgroup><col style="width:34%"><col style="width:22%"><col style="width:20%"><col style="width:12%"><col style="width:12%"></colgroup>
-        <thead><tr><th>Opportunité</th><th>Client</th><th>Commercial</th><th>Créée le</th><th>État</th></tr></thead><tbody id="tb-q-biz"></tbody></table></div>
-      <div class="g2">
-        <div class="card"><div class="ct r">Sans date de clôture</div>
-          <table class="dt r"><colgroup><col style="width:40%"><col style="width:28%"><col style="width:16%"><col style="width:16%"></colgroup>
-          <thead><tr><th>Opportunité</th><th>Client</th><th>Comm.</th><th>Créée le</th></tr></thead><tbody id="tb-q-nodate"></tbody></table></div>
-        <div class="card"><div class="ct r">Clôture dépassée</div>
-          <table class="dt r"><colgroup><col style="width:38%"><col style="width:26%"><col style="width:14%"><col style="width:22%"></colgroup>
-          <thead><tr><th>Opportunité</th><th>Client</th><th>Comm.</th><th>Clôture prévue</th></tr></thead><tbody id="tb-q-overdue"></tbody></table></div>
-      </div>
-      <div class="card-full"><div class="ct r">Sans positionnement (Pos. Actif = 0)</div>
-        <table class="dt r"><colgroup><col style="width:32%"><col style="width:22%"><col style="width:18%"><col style="width:16%"><col style="width:12%"></colgroup>
-        <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>Commercial</th><th>Créée le</th></tr></thead><tbody id="tb-q-nopos"></tbody></table></div>
-    </div>
-  </div>
 </div>
 <script>
 /* ══ CONSTANTS ═══════════════════════════════════════════ */
@@ -609,7 +532,6 @@ const getPond=r=>pn(gf(r,'Pondération','Pondération'));
 const getPole=r=>gf(r,'Pôle','Pôle')||'Autre';
 const getComm=r=>gf(r,'Responsable manager')||'Inconnu';
 const getCreation=r=>pd(gf(r,'Date de création','Date de création'));
-const getPos=r=>pn(gf(r,'Pos. Actif','Pos. Actif'));
 function groupSum(rows,kFn,vFn){const m={};rows.forEach(r=>{const k=kFn(r)||'Autre';m[k]=(m[k]||0)+vFn(r);});return m;}
 function sortedE(m){return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
 /* Semaine ISO depuis une date */
@@ -1091,169 +1013,27 @@ document.querySelectorAll('.evo-toggle').forEach(btn=>{
     });
   });
 });
-/* ══ TAB QUALITÉ DE SAISIE ════════════════════════════════ */
-function buildQualite(rows){
-  const today=new Date();today.setHours(0,0,0,0);
-  const real=rows.filter(r=>!isProjetInterne(r));
-  const ouv=real.filter(r=>ENC.includes(getEtat(r)));
-  const dClo=r=>pd(gf(r,'Date de clôture','Date de clôture'));
-  const sansDate=ouv.filter(r=>!gf(r,'Date de clôture','Date de clôture'));
-  const depassee=ouv.filter(r=>{const d=dClo(r);return d&&d<today;});
-  const biz=real.filter(r=>getPole(r).toLowerCase().includes('business'));
-  const sansPos=ouv.filter(r=>getPos(r)===0);
-  document.getElementById('q-nb').textContent=ouv.length;
-  document.getElementById('q-nodate').textContent=sansDate.length;
-  document.getElementById('q-overdue').textContent=depassee.length;
-  document.getElementById('q-biz').textContent=biz.length;
-  document.getElementById('q-nopos').textContent=sansPos.length;
-  /* Bar ancienneté : opps ouvertes par mois de création (chronologique) */
-  const byMonth={};
-  ouv.forEach(r=>{const d=getCreation(r);if(!d)return;const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;(byMonth[k]=byMonth[k]||[]).push(r);});
-  const months=Object.keys(byMonth).sort();
-  const labels=months.map(k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});});
-  const counts=months.map(k=>byMonth[k].length);
-  const colors=months.map((k,i)=>{const a=months.length>1?i/(months.length-1):1;return a<0.34?'#6D0718':a<0.67?'#FF4C41':BL;});
-  dch('q-age');
-  CH['q-age']=new Chart(document.getElementById('ch-q-age'),{type:'bar',data:{labels,datasets:[{label:'Opportunités ouvertes',data:counts,backgroundColor:colors,borderRadius:2,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:([c])=>labels[c.dataIndex],label:c=>` ${c.raw} opp. ouverte${c.raw>1?'s':''} — cliquez`}}},scales:{x:{...SC.x,ticks:{...SC.x.ticks,maxRotation:60,minRotation:45}},y:{...SC.y,min:0,ticks:{...SC.y.ticks,stepSize:1}}},onClick:(evt,els)=>{if(els.length){const k=months[els[0].index];openDrill('Créées en '+labels[els[0].index],'Opportunités ouvertes — ancienneté',byMonth[k]);}}}});
-  /* Tables */
-  function setTable(id,list,cols,rowHtml,emptyMsg){
-    const tb=document.getElementById(id);tb.innerHTML='';
-    if(!list.length){tb.innerHTML=`<tr><td colspan="${cols}" style="text-align:center;color:var(--gm);padding:14px">${emptyMsg}</td></tr>`;return;}
-    list.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=rowHtml(r);tb.appendChild(tr);});
-  }
-  const soc=r=>gf(r,'Société - Nom','Société - Nom')||'—';
-  const tit=r=>gf(r,'Titre')||'—';
-  setTable('tb-q-biz',[...biz].sort((a,b)=>(getCreation(b)||0)-(getCreation(a)||0)),5,
-    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-weight:600;color:var(--klein)">${getComm(r)||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td><td><span class="bd ${ETAT_BD[getEtat(r)]||'bd-gray'}">${getEtat(r)||'—'}</span></td>`;},
-    'Aucun besoin en pôle Business 🎉');
-  setTable('tb-q-nodate',[...sansDate].sort((a,b)=>(getCreation(a)||0)-(getCreation(b)||0)),4,
-    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
-    'Aucune 🎉');
-  setTable('tb-q-overdue',[...depassee].sort((a,b)=>(dClo(a)||0)-(dClo(b)||0)),4,
-    r=>{const d=dClo(r);const days=d?Math.round((today-d)/86400000):0;return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td style="color:#6D0718;font-weight:700">${d?d.toLocaleDateString('fr-FR'):'—'} <span style="font-size:10px;color:#B0B0B0">(+${days}j)</span></td>`;},
-    'Aucune 🎉');
-  setTable('tb-q-nopos',[...sansPos].sort((a,b)=>(getCreation(a)||0)-(getCreation(b)||0)),5,
-    r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td>${getPole(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
-    'Aucune 🎉');
-}
-/* ══ TAB OBJECTIFS ════════════════════════════════════════ */
-const COUV_CIBLE=3;
-let OBJ_ROWS=[];
-function getObjectifs(){try{return JSON.parse(localStorage.getItem('ippon_objectifs')||'{}');}catch(e){return{};}}
-function setObjectif(comm,val){const o=getObjectifs();if(val>0)o[comm]=val;else delete o[comm];localStorage.setItem('ippon_objectifs',JSON.stringify(o));}
-function onQuotaChange(el){setObjectif(el.dataset.comm,pn(el.value));buildObjectifs(OBJ_ROWS);}
-function exportQuotas(){const data=localStorage.getItem('ippon_objectifs')||'{}';const blob=new Blob([data],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quotas-commerciaux.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
-function importQuotas(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const o=JSON.parse(ev.target.result);if(typeof o!=='object'||Array.isArray(o))throw 0;localStorage.setItem('ippon_objectifs',JSON.stringify(o));buildObjectifs(OBJ_ROWS);alert('Quotas importés.');}catch(e){alert('Fichier de quotas invalide.');}};r.readAsText(f);el.value='';}
-function couvBadge(c){if(c===null)return '<span class="bd bd-green">objectif atteint</span>';const cls=c>=COUV_CIBLE?'bd-green':c>=1?'bd-yellow':'bd-red';return `<span class="bd ${cls}">${c.toFixed(1)}×</span>`;}
-function ecartCell(e){const col=e>=0?'#004C4C':'#6D0718';const sign=e>0?'+':e<0?'−':'';return `<span style="color:${col};font-weight:700">${sign}${fCA(Math.abs(e))}</span>`;}
-function buildObjectifs(rows){
-  OBJ_ROWS=rows;
-  const quotas=getObjectifs();
-  const gag=rows.filter(r=>GAG.includes(getEtat(r)));
-  const enc=rows.filter(r=>ENC.includes(getEtat(r)));
-  const comms=[...new Set(rows.map(getComm))].filter(c=>c&&c!=='Inconnu');
-  Object.keys(quotas).forEach(c=>{if(!comms.includes(c))comms.push(c);});
-  const data=comms.map(c=>{
-    const quota=pn(String(quotas[c]!=null?quotas[c]:0));
-    const gagne=gag.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
-    const brut=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCA(r),0);
-    const pondere=enc.filter(r=>getComm(r)===c).reduce((s,r)=>s+getCAP(r),0);
-    const reste=Math.max(0,quota-gagne);
-    const att=gagne+pondere;
-    return {c,quota,gagne,brut,pondere,reste,att,ecart:att-quota,prog:quota>0?gagne/quota*100:0,couv:reste>0?brut/reste:null};
-  }).sort((a,b)=>b.quota-a.quota||b.att-a.att);
-  const Tgagne=gag.reduce((s,r)=>s+getCA(r),0);
-  const Tbrut=enc.reduce((s,r)=>s+getCA(r),0);
-  const Tpondere=enc.reduce((s,r)=>s+getCAP(r),0);
-  const Tquota=data.reduce((s,d)=>s+d.quota,0);
-  const Treste=Math.max(0,Tquota-Tgagne);const Tatt=Tgagne+Tpondere;const Tcouv=Treste>0?Tbrut/Treste:null;
-  document.getElementById('ob-quota').textContent=fCA(Tquota);
-  document.getElementById('ob-gagne').textContent=fCA(Tgagne);
-  document.getElementById('ob-prog').textContent=Tquota>0?Math.round(Tgagne/Tquota*100)+'% de l\'objectif':'définissez les quotas';
-  document.getElementById('ob-reste').textContent=fCA(Treste);
-  document.getElementById('ob-att').textContent=fCA(Tatt);
-  document.getElementById('ob-couv').innerHTML=couvBadge(Tcouv);
-  const tb=document.getElementById('tb-obj');tb.innerHTML='';
-  data.forEach(d=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:600">${d.c}</td>`+
-      `<td><input type="number" min="0" step="10000" value="${d.quota||''}" data-comm="${d.c.replace(/"/g,'&quot;')}" onchange="onQuotaChange(this)" placeholder="—" style="width:118px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
-      `<td style="font-weight:700;color:#004C4C">${fCA(d.gagne)} <span style="font-size:10px;color:#B0B0B0;font-weight:400">${d.quota>0?Math.round(d.prog)+'%':''}</span></td>`+
-      `<td>${fCA(d.reste)}</td>`+
-      `<td style="color:${BL};font-weight:600">${fCA(d.pondere)}</td>`+
-      `<td style="font-weight:700">${fCA(d.att)}</td>`+
-      `<td>${ecartCell(d.ecart)}</td>`+
-      `<td>${couvBadge(d.couv)}</td>`;
-    tb.appendChild(tr);
-  });
-  const tf=document.getElementById('tf-obj');
-  tf.innerHTML=`<tr style="border-top:2px solid var(--gl);font-weight:700">`+
-    `<td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tquota)}</td>`+
-    `<td style="color:#004C4C">${fCA(Tgagne)}</td><td>${fCA(Treste)}</td>`+
-    `<td style="color:${BL}">${fCA(Tpondere)}</td><td>${fCA(Tatt)}</td>`+
-    `<td>${ecartCell(Tatt-Tquota)}</td><td>${couvBadge(Tcouv)}</td></tr>`;
-}
-/* ══ TAB ATTERRISSAGE TRIMESTRIEL ═════════════════════════ */
-function attCloture(r){return pd(gf(r,'Date de clôture','Date de clôture'));}
-function quarterKey(d){return d?d.getFullYear()+'-T'+(Math.floor(d.getMonth()/3)+1):null;}
-function quarterLabel(k){const p=k.split('-T');return 'T'+p[1]+' '+p[0];}
-function buildAtterrissage(rows){
-  const today=new Date();today.setHours(0,0,0,0);
-  const Q={};let lateN=0,latePond=0,nodN=0,nodPond=0;
-  const bk=k=>{if(!Q[k])Q[k]={gagne:0,pondere:0,brut:0,count:0};return Q[k];};
-  rows.forEach(r=>{
-    const et=getEtat(r);
-    if(GAG.includes(et)){const k=quarterKey(attCloture(r));if(k)bk(k).gagne+=getCA(r);return;}
-    if(!ENC.includes(et))return;
-    const d=attCloture(r);
-    if(!d){nodN++;nodPond+=getCAP(r);return;}
-    if(d<today){lateN++;latePond+=getCAP(r);return;}
-    const b=bk(quarterKey(d));b.pondere+=getCAP(r);b.brut+=getCA(r);b.count++;
-  });
-  const keys=Object.keys(Q).sort();
-  const curK=quarterKey(today);
-  const cur=Q[curK]||{gagne:0,pondere:0};
-  const nextK=keys.filter(k=>k>curK)[0]||null;
-  document.getElementById('at-cur').textContent=fCA(cur.gagne+cur.pondere);
-  document.getElementById('at-cur-q').textContent=quarterLabel(curK);
-  document.getElementById('at-next').textContent=nextK?fCA(Q[nextK].pondere):'—';
-  document.getElementById('at-next-q').textContent=nextK?quarterLabel(nextK):'aucun trimestre à venir';
-  document.getElementById('at-late').textContent=fCA(latePond);
-  document.getElementById('at-late-sub').textContent=lateN+' opp. ouverte'+(lateN>1?'s':'')+' · à requalifier';
-  document.getElementById('at-nod').textContent=nodN;
-  document.getElementById('at-nod-sub').textContent=fCA(nodPond)+' pondéré · non projeté';
-  document.getElementById('leg-att').innerHTML=`<span class="leg-i"><span class="leg-s" style="background:#004C4C"></span>Gagné (sécurisé)</span><span class="leg-i"><span class="leg-s" style="background:${BL}"></span>Pondéré (attendu)</span>`;
-  dch('att');
-  CH['att']=new Chart(document.getElementById('ch-att'),{type:'bar',data:{labels:keys.map(quarterLabel),datasets:[
-    {label:'Gagné',data:keys.map(k=>Math.round(Q[k].gagne)),backgroundColor:'#004C4C',borderRadius:2,borderWidth:0,stack:'s'},
-    {label:'Pondéré',data:keys.map(k=>Math.round(Q[k].pondere)),backgroundColor:BL,borderRadius:2,borderWidth:0,stack:'s'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>c[0].label,label:c=>' '+c.dataset.label+': '+fCA(c.raw)}}},scales:{x:{...SC.x,stacked:true,grid:{display:false}},y:{...SC.y,stacked:true,ticks:{...SC.y.ticks,callback:v=>fCA(v)}}}}});
-}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
-function loadCsv(text,isAdd,isRestore){
+function loadCsv(text,isAdd){
   const rows=parseCsv(text);
-  if(rows.length===0){if(!isRestore)alert('CSV vide ou format non reconnu.');return;}
+  if(rows.length===0){alert('CSV vide ou format non reconnu.');return;}
   const dates=rows.map(r=>pd(gf(r,'Date de mise à jour','Date de mise à jour'))).filter(Boolean);
-  const refDate=dates.length>0?new Date(dates.reduce((s,d)=>s+d.getTime(),0)/dates.length):new Date();
+  const refDate=dates.length>0?new Date(dates.reduce((s,d)=>s+d,0)/dates.length):new Date();
   const label=wlabel(refDate);
   const act=rows.filter(r=>ENC.includes(getEtat(r)));
   const caP=act.reduce((s,r)=>s+getCAP(r),0);
   const ponds=act.map(r=>getPond(r)).filter(x=>x>0);
   const avgPond=ponds.length?ponds.reduce((a,b)=>a+b,0)/ponds.length:0;
   const entry={label,caP:Math.round(caP),count:act.length,avgPond};
-  if(!isRestore){
-    if(!isAdd){history=[entry];}
-    else{const idx=history.findIndex(h=>h.label===label);if(idx>=0)history[idx]=entry;else history.push(entry);}
-    localStorage.setItem('ippon_v6',JSON.stringify(history));
-  }
+  if(!isAdd){history=[entry];}
+  else{const idx=history.findIndex(h=>h.label===label);if(idx>=0)history[idx]=entry;else history.push(entry);}
+  localStorage.setItem('ippon_v6',JSON.stringify(history));
   if(!isAdd){
-    if(!isRestore){try{localStorage.setItem('ippon_lastcsv',text);}catch(e){}}
     document.getElementById('week-badge').textContent=label;
     document.getElementById('opp-count').textContent=rows.length+' opportunités';
-    const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildObjectifs(rows);buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
@@ -1273,28 +1053,16 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click'
   }
 });});
 /* ══ FILE EVENTS ══════════════════════════════════════════ */
-function uploadToServer(file){
-  const fd=new FormData();fd.append('file',file);
-  const b=document.getElementById('week-badge');
-  if(b)b.textContent='enregistrement…';
-  fetch('/api/import',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
-    if(b)b.textContent=(d&&d.count)?('\u2713 '+d.count+' enregistr\u00e9es sur le serveur'):'';
-  }).catch(()=>{if(b)b.textContent='';});
-}
-/* Lecture robuste : tente UTF-8 strict, repli windows-1252 (export Boond Latin-1). */
-function readSmart(file,cb){const r=new FileReader();r.onload=ev=>{let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(ev.target.result);}catch(e){txt=new TextDecoder('windows-1252').decode(ev.target.result);}cb(txt);};r.readAsArrayBuffer(file);}
 const dropZone=document.getElementById('drop-zone');const fi=document.getElementById('file-input');const fiA=document.getElementById('file-input-add');
 dropZone.addEventListener('click',()=>fi.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
-fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
-document.getElementById('btn-reset').addEventListener('click',()=>{localStorage.removeItem('ippon_lastcsv');document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,false);r.readAsText(f,'windows-1252');}});
+fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,false);r.readAsText(f,'windows-1252');}});
+document.getElementById('btn-reset').addEventListener('click',()=>{document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
 document.getElementById('btn-add-week').addEventListener('click',()=>fiA.click());
-fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>loadCsv(txt,true));}});
+fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>loadCsv(ev.target.result,true);r.readAsText(f,'windows-1252');}});
 document.getElementById('btn-clear-history').addEventListener('click',()=>{history=[];localStorage.removeItem('ippon_v6');buildEvolution([]);});
-/* Auto-chargement du dernier import (sans réécrire l'historique d'évolution). */
-(function(){try{const last=localStorage.getItem('ippon_lastcsv');if(last)loadCsv(last,false,true);}catch(e){}})();
 /* ══ HELPERS MOIS ═════════════════════════════════════════ */
 function monthKey(d){if(!d)return null;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function monthLabel(k){if(!k)return'';const[y,m]=k.split('-');const d=new Date(+y,+m-1,1);return d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
