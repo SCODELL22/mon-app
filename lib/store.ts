@@ -51,10 +51,20 @@ function persist(items: Opportunity[]) {
 // ---------- Backend PostgreSQL ----------
 function needsSsl(url: string): boolean {
   if (process.env.PGSSL === 'disable') return false;
-  if (process.env.PGSSL === 'require') return true;
+  if (process.env.PGSSL === 'require' || process.env.PGSSL === 'no-verify') return true;
   // Connexions internes / locales : pas de SSL (ex. Railway *.railway.internal, localhost).
   if (/railway\.internal|localhost|127\.0\.0\.1|sslmode=disable/.test(url)) return false;
   return true; // hébergeurs distants (Neon, Supabase, ...) : SSL requis
+}
+
+function sslConfig(url: string): false | { rejectUnauthorized: boolean; ca?: string } {
+  if (!needsSsl(url)) return false;
+  // Par défaut on VÉRIFIE le certificat du serveur (protège contre le MITM).
+  // - PGSSL=no-verify : opt-out explicite (certificat self-signed connu uniquement).
+  // - PGSSL_CA : certificat racine personnalisé (PEM) si l'hébergeur en fournit un.
+  const rejectUnauthorized = process.env.PGSSL !== 'no-verify';
+  const ca = process.env.PGSSL_CA;
+  return ca ? { rejectUnauthorized, ca } : { rejectUnauthorized };
 }
 
 function pool(): Pool {
@@ -62,7 +72,7 @@ function pool(): Pool {
     const url = process.env.DATABASE_URL ?? '';
     g.__pool = new Pool({
       connectionString: url,
-      ssl: needsSsl(url) ? { rejectUnauthorized: false } : false,
+      ssl: sslConfig(url),
     });
   }
   return g.__pool;

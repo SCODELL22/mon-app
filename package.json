@@ -10,6 +10,9 @@
     "db:seed": "tsx scripts/seed-db.ts",
     "test": "tsx scripts/test-aggregations.ts && tsx scripts/test-store.ts && tsx scripts/test-boond.ts"
   },
+  "overrides": {
+    "postcss": "^8.5.10"
+  },
   "dependencies": {
     "next": "16.2.9",
     "papaparse": "^5.5.3",
