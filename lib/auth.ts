@@ -2,9 +2,22 @@
 // (AUTH_USER/AUTH_PASSWORD) par de vrais comptes individuels avec inscription libre.
 // Aucune dépendance npm ajoutée : hachage de mot de passe (PBKDF2) et signature de session
 // (HMAC-SHA256) via l'API Web Crypto, portable entre le runtime Node et Edge.
+import { NextResponse } from 'next/server';
 
 const PBKDF2_ITERATIONS = 210_000; // recommandation OWASP 2023 pour PBKDF2-HMAC-SHA256
 const enc = new TextEncoder();
+
+/**
+ * Redirige avec un Location RELATIF plutôt qu'une URL absolue.
+ * Derrière certains hébergeurs (Railway inclus), construire l'URL de redirection avec
+ * `new URL(path, req.url)` peut résoudre l'origine sur l'adresse interne du conteneur
+ * (http://localhost:8080) plutôt que sur le domaine public — le navigateur suit alors
+ * un lien vers sa propre machine et tombe en ERR_CONNECTION_REFUSED. Un Location relatif
+ * est toujours résolu par le navigateur contre l'URL publique qu'il a réellement appelée.
+ */
+export function redirectTo(path: string, status: 303 | 307 = 303): NextResponse {
+  return new NextResponse(null, { status, headers: { Location: path } });
+}
 
 function toHex(buf: ArrayBuffer): string {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');

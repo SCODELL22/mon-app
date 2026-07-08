@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifySession, SESSION_COOKIE } from '@/lib/auth';
+import { verifySession, SESSION_COOKIE, redirectTo } from '@/lib/auth';
 
 // Protection par compte (email + mot de passe individuels, cf. /signup et /login) — remplace
 // l'ancienne Basic Auth partagée (AUTH_USER/AUTH_PASSWORD).
@@ -28,10 +28,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = '/login';
-  url.searchParams.set('next', request.nextUrl.pathname);
-  return NextResponse.redirect(url);
+  // redirectTo() (Location relatif) plutôt qu'une URL absolue : derrière certains hébergeurs
+  // (Railway inclus), l'origine reconstruite côté serveur peut pointer vers l'adresse interne
+  // du conteneur (localhost:8080) au lieu du domaine public.
+  const next = encodeURIComponent(request.nextUrl.pathname);
+  return redirectTo(`/login?next=${next}`);
 }
 
 export const config = {

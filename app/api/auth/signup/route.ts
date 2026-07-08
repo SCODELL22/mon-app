@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { createUser, getUserByEmail } from '@/lib/users';
 import {
   hashPassword,
@@ -10,6 +9,7 @@ import {
   clientIp,
   isValidEmail,
   isAllowedEmailDomain,
+  redirectTo,
 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   const ip = clientIp(req);
   if (isRateLimited(`signup:${ip}`)) {
-    return NextResponse.redirect(new URL('/signup?error=ratelimited', req.url), 303);
+    return redirectTo('/signup?error=ratelimited');
   }
 
   const form = await req.formData();
@@ -26,32 +26,33 @@ export async function POST(req: Request) {
   const confirm = String(form.get('confirm') ?? '');
 
   if (!isValidEmail(email)) {
-    return NextResponse.redirect(new URL('/signup?error=email', req.url), 303);
+    return redirectTo('/signup?error=email');
   }
   if (!isAllowedEmailDomain(email)) {
     recordFailedAttempt(`signup:${ip}`);
-    return NextResponse.redirect(new URL('/signup?error=domain', req.url), 303);
+    return redirectTo('/signup?error=domain');
   }
   if (password.length < 8) {
-    return NextResponse.redirect(new URL('/signup?error=password', req.url), 303);
+    return redirectTo('/signup?error=password');
   }
   if (password !== confirm) {
-    return NextResponse.redirect(new URL('/signup?error=mismatch', req.url), 303);
+    return redirectTo('/signup?error=mismatch');
   }
 
   const existing = await getUserByEmail(email);
   if (existing) {
     recordFailedAttempt(`signup:${ip}`);
-    return NextResponse.redirect(new URL('/signup?error=taken', req.url), 303);
+    return redirectTo('/signup?error=taken');
   }
 
   const passwordHash = await hashPassword(password);
   const user = await createUser(email, passwordHash);
   const token = await signSession({ uid: user.id, email: user.email });
 
-  // NextResponse.redirect() (et non Response.redirect() natif) : la spec Fetch rend les headers
-  // d'un Response.redirect() immuables, ce qui empêche d'y ajouter le cookie de session ensuite.
-  const res = NextResponse.redirect(new URL('/', req.url), 303);
+  // redirectTo() (Location relatif) plutôt qu'une URL absolue construite depuis req.url : derrière
+  // certains hébergeurs (Railway inclus), req.url peut résoudre sur l'adresse interne du conteneur
+  // (localhost:8080) au lieu du domaine public, ce qui envoie le navigateur vers sa propre machine.
+  const res = redirectTo('/');
   res.cookies.set(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,

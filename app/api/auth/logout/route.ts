@@ -1,10 +1,9 @@
-import { NextResponse } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth';
+import { SESSION_COOKIE, redirectTo } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
-  const res = NextResponse.redirect(new URL('/login', req.url), 303);
+export async function POST() {
+  const res = redirectTo('/login');
   res.cookies.set(SESSION_COOKIE, '', { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 0 });
   return res;
 }
