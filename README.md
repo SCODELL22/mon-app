@@ -19,7 +19,8 @@ Ouvrir http://localhost:3000. Sans base configurée, l’app utilise un **fichie
 
 > La protection par compte est **désactivée** tant que `AUTH_SECRET` n'est pas défini (pratique
 > en local). En production, définir cette variable active la protection : chacun crée son compte
-> via `/signup` (email + mot de passe).
+> via `/signup` (email + mot de passe). L'inscription est réservée au domaine `@ippon.fr`
+> (configurable via `ALLOWED_EMAIL_DOMAIN`).
 
 ## Importer ses données BoondManager
 

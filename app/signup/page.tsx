@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 const MESSAGES: Record<string, string> = {
   email: 'Adresse email invalide.',
+  domain: 'Inscription réservée aux adresses @ippon.fr.',
   password: 'Le mot de passe doit faire au moins 8 caractères.',
   mismatch: 'Les mots de passe ne correspondent pas.',
   taken: 'Un compte existe déjà avec cet email.',

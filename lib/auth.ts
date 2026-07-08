@@ -147,3 +147,12 @@ export function clientIp(req: Request): string {
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
+/**
+ * Restreint l'inscription à un domaine d'entreprise (par défaut ippon.fr).
+ * Configurable via ALLOWED_EMAIL_DOMAIN (ex: "ippon.fr") pour ne pas coder le domaine en dur.
+ */
+export function isAllowedEmailDomain(email: string): boolean {
+  const domain = (process.env.ALLOWED_EMAIL_DOMAIN || 'ippon.fr').trim().toLowerCase();
+  return email.trim().toLowerCase().endsWith(`@${domain}`);
+}

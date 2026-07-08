@@ -9,6 +9,7 @@ import {
   recordFailedAttempt,
   clientIp,
   isValidEmail,
+  isAllowedEmailDomain,
 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
 
   if (!isValidEmail(email)) {
     return NextResponse.redirect(new URL('/signup?error=email', req.url), 303);
+  }
+  if (!isAllowedEmailDomain(email)) {
+    recordFailedAttempt(`signup:${ip}`);
+    return NextResponse.redirect(new URL('/signup?error=domain', req.url), 303);
   }
   if (password.length < 8) {
     return NextResponse.redirect(new URL('/signup?error=password', req.url), 303);
