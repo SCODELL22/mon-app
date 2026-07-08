@@ -6,6 +6,7 @@
 <title>Ippon — Pipeline Commercial</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Extra+Condensed:wght@300;400;700;900&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--klein:#003CDC;--deep:#000F41;--yellow:#FFC800;--white:#FFFFFF;--off:#F4F4F4;--gl:#E8E8E8;--gm:#B0B0B0;--gd:#6E6E6E;--green:#004C4C;--green2:#00CCA5;--orange:#FF4C41;--red:#6D0718;--bg:#F4F4F4;--surface:#FFFFFF;--border:rgba(0,61,220,0.10);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -277,11 +278,13 @@ select{appearance:auto;}
         <div class="ct g">CA réalisé vs objectif par commercial
           <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
             <span id="pf-periode" style="font-weight:400;color:var(--gd);font-size:11px;"></span>
-            <button onclick="document.getElementById('imp-fact').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer la facturation</button>
+            <button onclick="document.getElementById('imp-marge').click()" style="font-size:11px;color:#fff;background:var(--klein);border:1px solid var(--klein);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer le Suivi de marge (xlsx)</button>
+            <input type="file" id="imp-marge" accept=".xlsx" style="display:none" onchange="importMarge(this)">
+            <button onclick="document.getElementById('imp-fact').click()" style="font-size:11px;color:var(--gd);background:none;border:1px solid var(--gl);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer la facturation (CSV)</button>
             <input type="file" id="imp-fact" accept=".csv,text/csv" style="display:none" onchange="importFacturation(this)">
           </span></div>
         <div class="chart-wrap" style="height:300px;"><canvas id="ch-perf"></canvas></div>
-        <div class="chart-hint">Barres grises = objectif annuel · barres colorées = CA réalisé (couleur selon l'avancement). Importe l'export « Facturation » (colonnes Client, CA, Marge) pour mettre à jour.</div>
+        <div class="chart-hint">Barres grises = objectif annuel · barres colorées = CA réalisé (couleur selon l'avancement). Dépose le classeur xlsx « Suivi de marge » brut (recommandé) ou l'export CSV « Facturation » (colonnes Client, CA, Marge) pour mettre à jour.</div>
       </div>
       <div class="card-full">
         <div class="ct">Détail par commercial &amp; par client <span style="font-weight:400;color:var(--gd);font-size:11px;">— clique une ligne pour déplier ses comptes · objectif éditable (enregistré sur ce navigateur)</span></div>
@@ -292,6 +295,34 @@ select{appearance:auto;}
           <tfoot id="tf-perf"></tfoot>
         </table>
         <div class="chart-hint">Avancement = CA réalisé ÷ objectif. Le trait vertical marque le rythme attendu à date (<span id="pf-pace-lbl">—</span> de l'année écoulée).</div>
+      </div>
+      <div class="card-full" id="mg-negative-card" style="display:none;">
+        <div class="ct r">Projets à marge négative <span id="mg-neg-count" style="font-weight:400;color:var(--gd);font-size:11px;"></span></div>
+        <table class="dt r">
+          <colgroup><col style="width:20%"><col style="width:28%"><col style="width:16%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
+          <thead><tr><th>Client</th><th>Projet</th><th>Commercial</th><th>CA</th><th>Coûts</th><th>Marge</th></tr></thead>
+          <tbody id="tb-mg-neg"></tbody>
+        </table>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="ct">CA &amp; marge par practice</div>
+          <table class="dt"><colgroup><col style="width:44%"><col style="width:28%"><col style="width:28%"></colgroup>
+          <thead><tr><th>Practice</th><th>CA</th><th>Marge</th></tr></thead>
+          <tbody id="tb-mg-practice"></tbody></table>
+        </div>
+        <div class="card">
+          <div class="ct">CA &amp; marge par type de projet</div>
+          <table class="dt"><colgroup><col style="width:44%"><col style="width:28%"><col style="width:28%"></colgroup>
+          <thead><tr><th>Type</th><th>CA</th><th>Marge</th></tr></thead>
+          <tbody id="tb-mg-type"></tbody></table>
+        </div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Top clients (CA facturé)</div>
+        <table class="dt"><colgroup><col style="width:30%"><col style="width:22%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+        <thead><tr><th>Client</th><th>Commercial</th><th>CA</th><th>Marge</th><th>Marge %</th></tr></thead>
+        <tbody id="tb-mg-top"></tbody></table>
       </div>
     </div>
   </div>
@@ -1175,7 +1206,138 @@ function parseFactCsv(text){
   for(let i=1;i<lines.length;i++){const v=smartSplit(lines[i],sep).map(x=>x.replace(/^"|"$/g,'').trim());const cli=(v[iCli]||'').trim();if(!cli)continue;const ca=iCa>=0?pn(v[iCa]):0;const ma=iMa>=0?pn(v[iMa]):0;if(!m[cli])m[cli]={client:cli,ca:0,marge:0};m[cli].ca+=ca;m[cli].marge+=ma;}
   const out=Object.values(m);return out.length?out:null;
 }
-function importFacturation(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const rows=parseFactCsv(ev.target.result);if(!rows){alert('Fichier illisible. Colonnes attendues : Client, CA, Marge.');return;}localStorage.setItem('ippon_fact',JSON.stringify({periode:null,rows}));buildPerformance();alert(rows.length+' clients importés.');};r.readAsText(f);el.value='';}
+function importFacturation(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const rows=parseFactCsv(ev.target.result);if(!rows){alert('Fichier illisible. Colonnes attendues : Client, CA, Marge.');return;}localStorage.setItem('ippon_fact',JSON.stringify({periode:null,rows}));buildPerformance();if(typeof buildMargeDashboards==='function')buildMargeDashboards();alert(rows.length+' clients importés.');};r.readAsText(f);el.value='';}
+/* ══ IMPORT XLSX BRUT « SUIVI DE MARGE » ═════════════════════════ */
+function normHdr(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9%]+/g,' ').trim();}
+function numXl(v){if(typeof v==='number')return isNaN(v)?0:v;if(v==null||v==='')return 0;const n=Number(String(v).replace(/[\s€]/g,'').replace(',','.'));return isNaN(n)?0:n;}
+function strXl(v){return String(v==null?'':v).trim();}
+function sheetMatrix(ws){return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});}
+function findHeaderRowXl(matrix,required){
+  for(let r=0;r<matrix.length;r++){
+    const row=matrix[r];if(!row)continue;
+    const cols={};
+    for(let c=0;c<row.length;c++){const v=normHdr(row[c]);if(!v)continue;(cols[v]=cols[v]||[]).push(c);}
+    if(required.every(req=>cols[req]&&cols[req].length))return {rowIndex:r,cols};
+  }
+  return null;
+}
+function locateSheetXl(wb,required){
+  for(const name of wb.SheetNames){
+    const matrix=sheetMatrix(wb.Sheets[name]);
+    const found=findHeaderRowXl(matrix,required);
+    if(found)return {matrix,cols:found.cols,startRow:found.rowIndex+1};
+  }
+  return null;
+}
+function lastColXl(cols,key){const a=cols[key];return a&&a.length?a[a.length-1]:null;}
+function firstColXl(cols,key){const a=cols[key];return a&&a.length?a[0]:null;}
+// Les dates Excel arrivent parfois avec une petite imprécision flottante (ex. 31/05 23:59:39 au
+// lieu de 01/06 00:00:00) : on arrondit au jour UTC le plus proche avant de lire mois/année.
+function monthYearOfXl(d){const rounded=new Date(Math.round(d.getTime()/86400000)*86400000);return {y:rounded.getUTCFullYear(),m:String(rounded.getUTCMonth()+1).padStart(2,'0')};}
+function detectPeriodeXl(wb){
+  for(const name of wb.SheetNames){
+    const matrix=sheetMatrix(wb.Sheets[name]);
+    for(const row of matrix){
+      if(!row)continue;
+      if(normHdr(row[0])==='periode'&&row[1] instanceof Date){const my=monthYearOfXl(row[1]);return my.y+'-'+my.m;}
+    }
+  }
+  return null;
+}
+/**
+ * Parse le classeur brut « Suivi de marge » BoondManager (xlsx). Repère les onglets par le
+ * contenu de leurs en-têtes (pas par nom ni position), pour rester valide d'un mois et d'une
+ * année sur l'autre. Deux onglets exploités :
+ *  - détail par projet : Client/Projet/Commercial/Type/Statut/CA/Coûts/Marge (cumul YTD)
+ *  - practice : Projet/Practice, croisé par nom de projet.
+ */
+function parseMargeWorkbook(ab){
+  const wb=XLSX.read(new Uint8Array(ab),{type:'array',cellDates:true});
+  const detail=locateSheetXl(wb,['client','projet','commercial','type','statut','marge']);
+  if(!detail)return {rows:[],factRows:[],periode:null};
+  const practiceSheet=locateSheetXl(wb,['projet','practice']);
+  const practiceByProjet={};
+  if(practiceSheet){
+    const pc=firstColXl(practiceSheet.cols,'projet'),qc=firstColXl(practiceSheet.cols,'practice');
+    if(pc!=null&&qc!=null){
+      for(let r=practiceSheet.startRow;r<practiceSheet.matrix.length;r++){
+        const row=practiceSheet.matrix[r];if(!row)continue;
+        const projet=strXl(row[pc]);if(!projet)continue;
+        practiceByProjet[projet]=strXl(row[qc]);
+      }
+    }
+  }
+  const matrix=detail.matrix,cols=detail.cols,startRow=detail.startRow;
+  const clientCol=firstColXl(cols,'client'),projetCol=firstColXl(cols,'projet'),commercialCol=firstColXl(cols,'commercial'),
+    typeCol=firstColXl(cols,'type'),statutCol=firstColXl(cols,'statut'),caCol=lastColXl(cols,'ca'),coutsCol=lastColXl(cols,'couts'),margeCol=lastColXl(cols,'marge');
+  const rows=[];
+  for(let r=startRow;r<matrix.length;r++){
+    const row=matrix[r];if(!row||row.every(c=>c==null||c===''))continue;
+    const client=strXl(row[clientCol]),projet=strXl(row[projetCol]);
+    if(!client||!projet)continue;
+    rows.push({
+      client,projet,
+      commercial:strXl(row[commercialCol])||'Non attribué',
+      practice:practiceByProjet[projet]||'(non renseigné)',
+      type:strXl(row[typeCol]),statut:strXl(row[statutCol]),
+      ca:numXl(row[caCol]),couts:coutsCol!=null?numXl(row[coutsCol]):0,marge:numXl(row[margeCol])
+    });
+  }
+  // Agrégation par client (compatible ippon_fact) : la plupart des clients n'ont qu'un
+  // commercial ; si plusieurs (compte partagé), le CA total est rattaché à celui qui y
+  // contribue le plus. Le détail complet par commercial reste dans ippon_marge_detail.
+  const byClient={};
+  rows.forEach(r=>{
+    if(!byClient[r.client])byClient[r.client]={};
+    const bc=byClient[r.client];
+    if(!bc[r.commercial])bc[r.commercial]={ca:0,marge:0};
+    bc[r.commercial].ca+=r.ca;bc[r.commercial].marge+=r.marge;
+  });
+  const factRows=Object.keys(byClient).map(client=>{
+    const bc=byClient[client];let dominant='Non attribué',dominantCa=-Infinity,totalCa=0,totalMarge=0;
+    Object.keys(bc).forEach(comm=>{totalCa+=bc[comm].ca;totalMarge+=bc[comm].marge;if(bc[comm].ca>dominantCa){dominantCa=bc[comm].ca;dominant=comm;}});
+    return {client,commercial:dominant,ca:totalCa,marge:totalMarge};
+  });
+  return {rows,factRows,periode:detectPeriodeXl(wb)};
+}
+function getMargeDetail(){try{const s=localStorage.getItem('ippon_marge_detail');if(s){const o=JSON.parse(s);if(o&&o.rows)return o;}}catch(e){}return {periode:null,rows:[]};}
+function importMarge(el){
+  const f=el.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    let result;
+    try{result=parseMargeWorkbook(ev.target.result);}
+    catch(e){alert("Fichier illisible. Vérifie qu'il s'agit bien du classeur brut « Suivi de marge ».");return;}
+    if(!result.rows.length){alert('Aucune ligne exploitable trouvée dans ce classeur.');return;}
+    localStorage.setItem('ippon_fact',JSON.stringify({periode:result.periode,rows:result.factRows}));
+    localStorage.setItem('ippon_marge_detail',JSON.stringify({periode:result.periode,rows:result.rows}));
+    buildPerformance();buildMargeDashboards();
+    alert(result.rows.length+' projets importés ('+result.factRows.length+' clients).');
+  };
+  r.readAsArrayBuffer(f);
+  el.value='';
+}
+function mgPct(m,ca){return ca>0?(m/ca*100):0;}
+function buildMargeDashboards(){
+  const det=getMargeDetail();const rows=det.rows||[];
+  const byP={};rows.forEach(r=>{const k=r.practice||'(non renseigné)';if(!byP[k])byP[k]={ca:0,marge:0,n:0};byP[k].ca+=r.ca;byP[k].marge+=r.marge;byP[k].n++;});
+  const practices=Object.keys(byP).map(k=>({k,...byP[k]})).sort((a,b)=>b.ca-a.ca);
+  const tbP=document.getElementById('tb-mg-practice');
+  if(tbP)tbP.innerHTML=practices.length?practices.map(p=>`<tr><td>${p.k} <span style="font-size:10px;color:var(--gm)">(${p.n})</span></td><td style="font-weight:700;color:var(--klein)">${fCA(p.ca)}</td><td>${fCA(p.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(p.marge,p.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  const byT={};rows.forEach(r=>{const k=r.type||'(non renseigné)';if(!byT[k])byT[k]={ca:0,marge:0};byT[k].ca+=r.ca;byT[k].marge+=r.marge;});
+  const types=Object.keys(byT).map(k=>({k,...byT[k]})).sort((a,b)=>b.ca-a.ca);
+  const tbT=document.getElementById('tb-mg-type');
+  if(tbT)tbT.innerHTML=types.length?types.map(t=>`<tr><td>${t.k}</td><td style="font-weight:700;color:var(--klein)">${fCA(t.ca)}</td><td>${fCA(t.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(t.marge,t.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  const byC={};rows.forEach(r=>{if(!byC[r.client])byC[r.client]={ca:0,marge:0,byComm:{}};const c=byC[r.client];c.ca+=r.ca;c.marge+=r.marge;c.byComm[r.commercial]=(c.byComm[r.commercial]||0)+r.ca;});
+  const clients=Object.keys(byC).map(client=>{const v=byC[client];const dom=Object.entries(v.byComm).sort((a,b)=>b[1]-a[1])[0];return {client,commercial:dom?dom[0]:'',ca:v.ca,marge:v.marge};}).sort((a,b)=>b.ca-a.ca).slice(0,10);
+  const tbC=document.getElementById('tb-mg-top');
+  if(tbC)tbC.innerHTML=clients.length?clients.map(c=>`<tr><td style="font-weight:600">${c.client}</td><td style="color:var(--gd)">${c.commercial}</td><td style="font-weight:700;color:var(--klein)">${fCA(c.ca)}</td><td>${fCA(c.marge)}</td><td>${mgPct(c.marge,c.ca).toFixed(1).replace('.',',')}%</td></tr>`).join(''):'<tr><td colspan="5" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  const neg=rows.filter(r=>r.marge<0).sort((a,b)=>a.marge-b.marge);
+  const card=document.getElementById('mg-negative-card'),tbN=document.getElementById('tb-mg-neg'),cnt=document.getElementById('mg-neg-count');
+  if(card)card.style.display=neg.length?'block':'none';
+  if(cnt)cnt.textContent=neg.length?('— '+neg.length+' projet(s), '+fCA(neg.reduce((s,r)=>s+r.marge,0))+' cumulés'):'';
+  if(tbN)tbN.innerHTML=neg.map(r=>`<tr><td style="font-weight:600">${r.client}</td><td style="color:var(--gd)" title="${r.projet.replace(/"/g,'&quot;')}">${r.projet}</td><td style="color:var(--gd)">${r.commercial}</td><td>${fCA(r.ca)}</td><td>${fCA(r.couts)}</td><td style="font-weight:700;color:var(--red)">${fCA(r.marge)}</td></tr>`).join('');
+}
 function yearFrac(){const n=new Date();const s=new Date(n.getFullYear(),0,1);const e=new Date(n.getFullYear()+1,0,1);return (n-s)/(e-s);}
 function pfPeriode(p){if(!p)return 'à date';const m=p.match(/^(\d{4})-(\d{2})$/);if(!m)return p;return new Date(+m[1],+m[2]-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
 function pfState(av,pace){if(av>=100)return['#004C4C','Objectif atteint'];if(av>=pace)return['#00CCA5','Dans les temps'];if(av>=pace*0.8)return['#FF8A00','À surveiller'];return['#FF4C41','En retard'];}
@@ -1185,7 +1347,7 @@ function buildPerformance(){
   const fact=getFact();const quotas=getObjectifs();const pace=yearFrac();
   const objOf=c=>{const q=quotas[c];return (q!=null&&q!=='')?pn(String(q)):(OBJECTIFS_2026[c]||0);};
   const G={};
-  fact.rows.forEach(r=>{const c=commOf(r.client);if(!G[c])G[c]={ca:0,marge:0,clients:[]};G[c].ca+=r.ca;G[c].marge+=r.marge;G[c].clients.push({client:r.client,ca:r.ca,marge:r.marge});});
+  fact.rows.forEach(r=>{const c=r.commercial||commOf(r.client);if(!G[c])G[c]={ca:0,marge:0,clients:[]};G[c].ca+=r.ca;G[c].marge+=r.marge;G[c].clients.push({client:r.client,ca:r.ca,marge:r.marge});});
   Object.keys(OBJECTIFS_2026).forEach(c=>{if(!G[c])G[c]={ca:0,marge:0,clients:[]};});
   const comms=Object.keys(G).filter(c=>c!=='Non attribué').map(c=>{const o=objOf(c),g=G[c];return {c,obj:o,ca:g.ca,marge:g.marge,mpct:g.ca>0?g.marge/g.ca:0,ecart:g.ca-o,av:o>0?g.ca/o*100:0,clients:g.clients.sort((a,b)=>b.ca-a.ca)};}).sort((a,b)=>b.obj-a.obj||b.ca-a.ca);
   const na=G['Non attribué'];
@@ -1281,7 +1443,7 @@ function loadCsv(text,isAdd,isRestore){
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildPerformance();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
