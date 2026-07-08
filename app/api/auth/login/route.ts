@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { getUserByEmail } from '@/lib/users';
 import {
   verifyPassword,
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
   const ip = clientIp(req);
   const rateKey = `login:${ip}`;
   if (isRateLimited(rateKey)) {
-    return Response.redirect(new URL('/login?error=ratelimited', req.url), 303);
+    return NextResponse.redirect(new URL('/login?error=ratelimited', req.url), 303);
   }
 
   const form = await req.formData();
@@ -28,17 +29,21 @@ export async function POST(req: Request) {
   const valid = user ? await verifyPassword(password, user.passwordHash) : false;
   if (!user || !valid) {
     recordFailedAttempt(rateKey);
-    return Response.redirect(new URL('/login?error=invalid', req.url), 303);
+    return NextResponse.redirect(new URL('/login?error=invalid', req.url), 303);
   }
 
   clearRateLimit(rateKey);
   const token = await signSession({ uid: user.id, email: user.email });
-  const res = Response.redirect(new URL(next.startsWith('/') ? next : '/', req.url), 303);
-  res.headers.append(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}${
-      process.env.NODE_ENV === 'production' ? '; Secure' : ''
-    }`,
-  );
+
+  // NextResponse.redirect() (et non Response.redirect() natif) : la spec Fetch rend les headers
+  // d'un Response.redirect() immuables, ce qui empêche d'y ajouter le cookie de session ensuite.
+  const res = NextResponse.redirect(new URL(next.startsWith('/') ? next : '/', req.url), 303);
+  res.cookies.set(SESSION_COOKIE, token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: SESSION_MAX_AGE,
+    secure: process.env.NODE_ENV === 'production',
+  });
   return res;
 }
