@@ -39,15 +39,17 @@ git push
 
 Ouvrir le service **mon-app** (pas le service Postgres) → onglet **Variables**, et ajouter :
 
-| Variable        | Valeur                                  |
-|-----------------|-----------------------------------------|
-| `DATABASE_URL`  | `${{Postgres.DATABASE_URL}}`            |
-| `AUTH_USER`     | l'identifiant de votre choix            |
-| `AUTH_PASSWORD` | un mot de passe solide                  |
+| Variable       | Valeur                                                      |
+|----------------|---------------------------------------------------------------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}`                                   |
+| `AUTH_SECRET`  | une longue chaîne aléatoire (générée avec `openssl rand -base64 32`) |
 
 - `${{Postgres.DATABASE_URL}}` est une **référence** vers la base : tapez-la telle quelle,
   Railway la remplace par la vraie chaîne de connexion (réseau interne, sans SSL — c'est géré par l'app).
-- Sans `AUTH_USER` / `AUTH_PASSWORD`, le site serait **public** : à ne pas faire avec des données commerciales.
+- Sans `AUTH_SECRET`, le site refuse toutes les requêtes (fail-closed) : à ne pas oublier avant
+  le premier déploiement en prod.
+- La table `users` (comptes créés via `/signup`) est créée automatiquement au premier accès,
+  comme `opportunities`.
 
 Railway redéploie automatiquement après l'ajout des variables.
 
@@ -57,8 +59,10 @@ Railway redéploie automatiquement après l'ajout des variables.
 
 1. Service **mon-app → Settings → Networking → Generate Domain**. Railway donne une URL en
    `https://mon-app-production-xxxx.up.railway.app`.
-2. Ouvrir cette URL, se connecter avec vos identifiants, puis **Importer un CSV** avec l'export BoondManager.
-3. Vérifier que le dashboard affiche bien vos opportunités. Si oui, la base fonctionne.
+2. Ouvrir cette URL : elle redirige vers `/signup`. Créer le premier compte (email + mot de
+   passe), puis inviter l'équipe à faire de même — chacun crée son propre compte.
+3. Une fois connecté, **Importer un CSV** avec l'export BoondManager et vérifier que le
+   dashboard affiche bien vos opportunités. Si oui, la base fonctionne.
 
 ---
 

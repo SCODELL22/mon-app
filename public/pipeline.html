@@ -207,6 +207,7 @@ select{appearance:auto;}
       <span class="wb" id="data-fresh"></span>
       <span class="wb" id="week-badge"></span>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
+      <button class="btn-g" onclick="logout()">Déconnexion</button>
     </div>
   </div>
   <div class="tabs-bar">
@@ -614,6 +615,7 @@ const ENC=["Besoin d'analyse",'Qualification','A valider','Proposition','Négoci
 const GAG=['Fermé gagné'];
 const PER=['Fermé perdu','Abandonné'];
 let history=JSON.parse(localStorage.getItem('ippon_v6')||'[]');
+function logout(){fetch('/api/auth/logout',{method:'POST'}).then(()=>{location.href='/login';});}
 let CH={};
 /* ══ UTILS ════════════════════════════════════════════════ */
 function parseCsv(text){

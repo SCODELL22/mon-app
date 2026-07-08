@@ -17,8 +17,9 @@ npm run dev
 Ouvrir http://localhost:3000. Sans base configurée, l’app utilise un **fichier local**
 (`.data/opportunities.json`) ; au premier lancement, un petit jeu de démonstration s’affiche.
 
-> Le mot de passe est **désactivé** tant que `AUTH_USER` / `AUTH_PASSWORD` ne sont pas définis.
-> Pratique en local. En production, définir ces deux variables active la protection.
+> La protection par compte est **désactivée** tant que `AUTH_SECRET` n'est pas défini (pratique
+> en local). En production, définir cette variable active la protection : chacun crée son compte
+> via `/signup` (email + mot de passe).
 
 ## Importer ses données BoondManager
 

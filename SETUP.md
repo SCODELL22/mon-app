@@ -12,8 +12,7 @@ Copier `.env.example` vers `.env.local` et renseigner :
 | Variable        | Rôle                                                                 |
 |-----------------|----------------------------------------------------------------------|
 | `DATABASE_URL`  | Chaîne de connexion Postgres. **Vide = mode démo en mémoire.**       |
-| `AUTH_USER`     | Identifiant pour la protection par mot de passe du site.             |
-| `AUTH_PASSWORD` | Mot de passe associé.                                                |
+| `AUTH_SECRET`   | Secret de signature des cookies de session (comptes email + mot de passe). Génération : `openssl rand -base64 32`. |
 | `PGSSL`         | Optionnel. `disable` pour un Postgres local sans SSL.                |
 
 ## 3. Récupérer une base PostgreSQL
@@ -43,7 +42,7 @@ L’app est une app Next.js standard, déployable sur **Vercel** :
 
 1. Pousser le code sur GitHub (voir ci-dessous).
 2. Sur https://vercel.com → *New Project* → importer le dépôt `SCODELL22/mon-app`.
-3. Renseigner les variables d’environnement (`DATABASE_URL`, `AUTH_USER`, `AUTH_PASSWORD`).
+3. Renseigner les variables d’environnement (`DATABASE_URL`, `AUTH_SECRET`).
 4. Déployer, puis rattacher le domaine **ipponparis.com** (ou un sous-domaine, ex. `pilotage.ipponparis.com`) dans *Project → Settings → Domains*.
 
 ## 6. Récupérer ces modifications dans votre dépôt git
@@ -64,6 +63,7 @@ git push
 - **Données** : couche `lib/store.ts` — PostgreSQL via `pg` si `DATABASE_URL`, sinon mémoire.
 - **Calculs** : `lib/aggregations.ts` (fonctions pures, testées dans `scripts/`).
 - **Listes de référence** (pôles, secteurs, commerciaux, objectif agence) : éditables dans `lib/config.ts`.
-- **Sécurité** : `proxy.ts` applique la Basic Auth à toutes les routes. Les Server Actions
-  passent par cette protection ; pour un usage multi-utilisateurs avancé, prévoir une vraie
-  authentification (jalon ultérieur).
+- **Sécurité** : `proxy.ts` exige une session valide sur toutes les routes (sauf `/login`,
+  `/signup`, `/api/auth/*`). Comptes individuels (email + mot de passe, PBKDF2 côté serveur,
+  cookie de session signé HMAC) — voir `lib/auth.ts` et `lib/users.ts`. Tout le monde voit les
+  mêmes données une fois connecté (pas de rôles/permissions différenciés à ce stade).
