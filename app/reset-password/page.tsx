@@ -1,16 +1,16 @@
 export const dynamic = 'force-dynamic';
 
 const MESSAGES: Record<string, string> = {
-  invalid: 'Email ou mot de passe incorrect.',
-  ratelimited: 'Trop de tentatives. Réessaie dans quelques minutes.',
+  password: 'Le mot de passe doit faire au moins 8 caractères.',
+  mismatch: 'Les mots de passe ne correspondent pas.',
 };
 
-export default async function LoginPage({
+export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ token?: string; error?: string }>;
 }) {
-  const { error, next } = await searchParams;
+  const { token, error } = await searchParams;
 
   return (
     <div style={wrap}>
@@ -20,31 +20,35 @@ export default async function LoginPage({
       />
       <div style={card}>
         <div style={wm}>ippon</div>
-        <h1 style={title}>Connexion</h1>
+        <h1 style={title}>Nouveau mot de passe</h1>
         <p style={sub}>Pilotage commercial — accès réservé à l’équipe.</p>
 
-        {error && <div style={errBox}>{MESSAGES[error] ?? 'Une erreur est survenue.'}</div>}
-
-        <form action="/api/auth/login" method="POST" style={{ display: 'grid', gap: 12, marginTop: 18 }}>
-          <input type="hidden" name="next" value={next ?? '/'} />
-          <label style={label}>
-            Email
-            <input type="email" name="email" required autoFocus style={input} placeholder="prenom.nom@ippon.fr" />
-          </label>
-          <label style={label}>
-            Mot de passe
-            <input type="password" name="password" required style={input} />
-          </label>
-          <button type="submit" style={btn}>
-            Se connecter
-          </button>
-        </form>
+        {!token ? (
+          <p style={errBox}>
+            Ce lien est invalide. <a href="/forgot-password" style={link}>Demandes-en un nouveau</a>.
+          </p>
+        ) : (
+          <>
+            {error && <div style={errBox}>{MESSAGES[error] ?? 'Une erreur est survenue.'}</div>}
+            <form action="/api/auth/reset-password" method="POST" style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+              <input type="hidden" name="token" value={token} />
+              <label style={label}>
+                Nouveau mot de passe
+                <input type="password" name="password" required minLength={8} autoFocus style={input} />
+              </label>
+              <label style={label}>
+                Confirmer le mot de passe
+                <input type="password" name="confirm" required minLength={8} style={input} />
+              </label>
+              <button type="submit" style={btn}>
+                Réinitialiser
+              </button>
+            </form>
+          </>
+        )}
 
         <p style={foot}>
-          <a href="/forgot-password" style={link}>Mot de passe oublié ?</a>
-        </p>
-        <p style={foot}>
-          Pas encore de compte ? <a href="/signup" style={link}>Créer un compte</a>
+          <a href="/login" style={link}>Retour à la connexion</a>
         </p>
       </div>
     </div>

@@ -14,6 +14,9 @@ Copier `.env.example` vers `.env.local` et renseigner :
 | `DATABASE_URL`  | Chaîne de connexion Postgres. **Vide = mode démo en mémoire.**       |
 | `AUTH_SECRET`   | Secret de signature des cookies de session (comptes email + mot de passe). Génération : `openssl rand -base64 32`. |
 | `PGSSL`         | Optionnel. `disable` pour un Postgres local sans SSL.                |
+| `APP_URL`       | Domaine public de l'app (ex: `https://ipponparis.com`), utilisé pour les liens de réinitialisation de mot de passe. |
+| `RESEND_API_KEY`| Clé API [Resend](https://resend.com) pour l'envoi d'email « mot de passe oublié ». Optionnel : sans elle, `/forgot-password` n'envoie rien. |
+| `RESEND_FROM`   | Expéditeur affiché (nécessite un domaine vérifié dans Resend, sinon utiliser `onboarding@resend.dev`). |
 
 ## 3. Récupérer une base PostgreSQL
 

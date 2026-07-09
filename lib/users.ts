@@ -140,6 +140,21 @@ export async function createUser(email: string, passwordHash: string): Promise<U
   return user;
 }
 
+/** Change le mot de passe (déjà haché) d'un utilisateur existant. Ne fait rien si l'id est inconnu. */
+export async function updatePassword(id: string, passwordHash: string): Promise<void> {
+  if (USE_DB) {
+    await ensureSchema();
+    await pool().query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]);
+    return;
+  }
+  const users = loadLocal();
+  const user = users.find((u) => u.id === id);
+  if (user) {
+    user.passwordHash = passwordHash;
+    persistLocal(users);
+  }
+}
+
 export function usersBackendName(): string {
   return USE_DB ? 'PostgreSQL' : 'fichier local';
 }

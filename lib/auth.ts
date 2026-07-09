@@ -169,3 +169,62 @@ export function isAllowedEmailDomain(email: string): boolean {
   const domain = (process.env.ALLOWED_EMAIL_DOMAIN || 'ippon.fr').trim().toLowerCase();
   return email.trim().toLowerCase().endsWith(`@${domain}`);
 }
+
+// ---------- Réinitialisation de mot de passe (lien à usage unique, sans état côté serveur) ----------
+// Le jeton contient une empreinte du hash de mot de passe ACTUEL au moment de l'émission. Dès que
+// le mot de passe change (via ce flux ou un autre), l'empreinte stockée en base change aussi, donc
+// tout jeton déjà émis échoue à la vérification : usage unique garanti sans avoir à retenir les
+// jetons déjà consommés côté serveur (cohérent avec le reste de lib/auth.ts, 100% stateless).
+const RESET_TOKEN_MINUTES = 30;
+
+interface ResetPayload {
+  uid: string;
+  exp: number; // epoch seconds
+  pf: string; // empreinte du hash de mot de passe au moment de l'émission du lien
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(input));
+  return toHex(digest);
+}
+
+/** Empreinte courte (16 hex) du hash de mot de passe — ne permet pas de retrouver le hash complet. */
+export async function passwordFingerprint(passwordHash: string): Promise<string> {
+  return (await sha256Hex(passwordHash)).slice(0, 16);
+}
+
+/** Émet un lien de réinitialisation (30 min) pour l'utilisateur `uid`, lié à son mot de passe actuel. */
+export async function signResetToken(uid: string, passwordHash: string): Promise<string> {
+  const payload: ResetPayload = {
+    uid,
+    exp: Math.floor(Date.now() / 1000) + RESET_TOKEN_MINUTES * 60,
+    pf: await passwordFingerprint(passwordHash),
+  };
+  const body = b64url(enc.encode(JSON.stringify(payload)));
+  const key = await hmacKey();
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(body));
+  return `${body}.${b64url(new Uint8Array(sig))}`;
+}
+
+/**
+ * Vérifie la signature et l'expiration d'un jeton de réinitialisation, et renvoie son contenu.
+ * NE vérifie PAS encore l'usage unique : l'appelant doit ensuite comparer `pf` à
+ * `passwordFingerprint(utilisateur.passwordHash)` une fois l'utilisateur chargé en base.
+ */
+export async function verifyResetTokenSignature(
+  token: string | undefined | null,
+): Promise<{ uid: string; pf: string } | null> {
+  if (!token) return null;
+  const [body, sig] = token.split('.');
+  if (!body || !sig) return null;
+  try {
+    const key = await hmacKey();
+    const ok = await crypto.subtle.verify('HMAC', key, b64urlDecode(sig) as BufferSource, enc.encode(body));
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlDecode(body))) as ResetPayload;
+    if (payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return { uid: payload.uid, pf: payload.pf };
+  } catch {
+    return null;
+  }
+}

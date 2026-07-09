@@ -39,19 +39,36 @@ git push
 
 Ouvrir le service **mon-app** (pas le service Postgres) → onglet **Variables**, et ajouter :
 
-| Variable       | Valeur                                                      |
-|----------------|---------------------------------------------------------------|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}`                                   |
-| `AUTH_SECRET`  | une longue chaîne aléatoire (générée avec `openssl rand -base64 32`) |
+| Variable          | Valeur                                                      |
+|-------------------|---------------------------------------------------------------|
+| `DATABASE_URL`    | `${{Postgres.DATABASE_URL}}`                                   |
+| `AUTH_SECRET`     | une longue chaîne aléatoire (générée avec `openssl rand -base64 32`) |
+| `APP_URL`         | `https://ipponparis.com` (ou l'URL `*.up.railway.app` tant que le domaine perso n'est pas branché — étape 6) |
+| `RESEND_API_KEY`  | clé API depuis le dashboard [resend.com](https://resend.com) (Étape 4bis) |
+| `RESEND_FROM`     | `Pilotage Ippon <no-reply@ipponparis.com>` (nécessite le domaine vérifié dans Resend) |
 
 - `${{Postgres.DATABASE_URL}}` est une **référence** vers la base : tapez-la telle quelle,
   Railway la remplace par la vraie chaîne de connexion (réseau interne, sans SSL — c'est géré par l'app).
 - Sans `AUTH_SECRET`, le site refuse toutes les requêtes (fail-closed) : à ne pas oublier avant
   le premier déploiement en prod.
+- Sans `APP_URL`/`RESEND_API_KEY`, `/signup` et `/login` fonctionnent normalement, mais
+  `/forgot-password` n'envoie pas d'email (la page ne plante pas, elle échoue silencieusement —
+  vérifier les logs Railway si un email attendu n'arrive pas).
 - La table `users` (comptes créés via `/signup`) est créée automatiquement au premier accès,
   comme `opportunities`.
 
 Railway redéploie automatiquement après l'ajout des variables.
+
+---
+
+## Étape 4bis — Créer un compte Resend (pour l'email « mot de passe oublié »)
+
+1. Créer un compte sur https://resend.com (gratuit jusqu'à 100 emails/jour).
+2. **Dashboard → API Keys → Create API Key**, copier la clé dans `RESEND_API_KEY` (Railway).
+3. **Dashboard → Domains → Add Domain**, saisir `ipponparis.com`. Resend donne des enregistrements
+   DNS (TXT/MX) à ajouter chez le registrar du domaine — même logique que l'étape 6 ci-dessous.
+4. Tant que le domaine n'est pas vérifié, `RESEND_FROM` doit rester `onboarding@resend.dev`
+   (adresse de test Resend) — sinon l'envoi échoue.
 
 ---
 

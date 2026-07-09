@@ -1,16 +1,16 @@
 export const dynamic = 'force-dynamic';
 
 const MESSAGES: Record<string, string> = {
-  invalid: 'Email ou mot de passe incorrect.',
   ratelimited: 'Trop de tentatives. Réessaie dans quelques minutes.',
+  expired: 'Ce lien a expiré ou a déjà été utilisé. Demande-en un nouveau ci-dessous.',
 };
 
-export default async function LoginPage({
+export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; sent?: string }>;
 }) {
-  const { error, next } = await searchParams;
+  const { error, sent } = await searchParams;
 
   return (
     <div style={wrap}>
@@ -20,31 +20,31 @@ export default async function LoginPage({
       />
       <div style={card}>
         <div style={wm}>ippon</div>
-        <h1 style={title}>Connexion</h1>
+        <h1 style={title}>Mot de passe oublié</h1>
         <p style={sub}>Pilotage commercial — accès réservé à l’équipe.</p>
 
-        {error && <div style={errBox}>{MESSAGES[error] ?? 'Une erreur est survenue.'}</div>}
-
-        <form action="/api/auth/login" method="POST" style={{ display: 'grid', gap: 12, marginTop: 18 }}>
-          <input type="hidden" name="next" value={next ?? '/'} />
-          <label style={label}>
-            Email
-            <input type="email" name="email" required autoFocus style={input} placeholder="prenom.nom@ippon.fr" />
-          </label>
-          <label style={label}>
-            Mot de passe
-            <input type="password" name="password" required style={input} />
-          </label>
-          <button type="submit" style={btn}>
-            Se connecter
-          </button>
-        </form>
+        {sent ? (
+          <p style={okBox}>
+            Si un compte existe avec cette adresse, un email vient d’être envoyé avec un lien de
+            réinitialisation (valable 30 minutes). Pense à vérifier tes spams.
+          </p>
+        ) : (
+          <>
+            {error && <div style={errBox}>{MESSAGES[error] ?? 'Une erreur est survenue.'}</div>}
+            <form action="/api/auth/forgot-password" method="POST" style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+              <label style={label}>
+                Email
+                <input type="email" name="email" required autoFocus style={input} placeholder="prenom.nom@ippon.fr" />
+              </label>
+              <button type="submit" style={btn}>
+                Envoyer le lien
+              </button>
+            </form>
+          </>
+        )}
 
         <p style={foot}>
-          <a href="/forgot-password" style={link}>Mot de passe oublié ?</a>
-        </p>
-        <p style={foot}>
-          Pas encore de compte ? <a href="/signup" style={link}>Créer un compte</a>
+          <a href="/login" style={link}>Retour à la connexion</a>
         </p>
       </div>
     </div>
@@ -115,4 +115,13 @@ const errBox: React.CSSProperties = {
   background: '#FDE8EA',
   borderRadius: 2,
   padding: '8px 10px',
+};
+const okBox: React.CSSProperties = {
+  marginTop: 14,
+  fontSize: 13,
+  color: '#0A5C36',
+  background: '#E7F6EE',
+  borderRadius: 2,
+  padding: '10px 12px',
+  lineHeight: 1.5,
 };
