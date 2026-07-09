@@ -222,6 +222,7 @@ select{appearance:auto;}
     <button class="tab-btn" data-tab="dynamique">Dynamique mensuelle</button>
     <button class="tab-btn" data-tab="perduesmonth">Perdues par mois</button>
     <button class="tab-btn" data-tab="qualite">Qualité saisie</button>
+    <button class="tab-btn" data-tab="recrutement">Recrutement</button>
   </div>
   <!-- TAB PIPE EN COURS -->
   <div id="tab-encours" class="tab-panel active">
@@ -602,6 +603,64 @@ select{appearance:auto;}
       <div class="card-full"><div class="ct r">Sans positionnement (Pos. Actif = 0)</div>
         <table class="dt r"><colgroup><col style="width:32%"><col style="width:22%"><col style="width:18%"><col style="width:16%"><col style="width:12%"></colgroup>
         <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>Commercial</th><th>Créée le</th></tr></thead><tbody id="tb-q-nopos"></tbody></table></div>
+    </div>
+  </div>
+  <!-- TAB RECRUTEMENT -->
+  <div id="tab-recrutement" class="tab-panel">
+    <div class="content">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">Arrivées prévues 2026</div><div class="kpi-val" id="rc-arr-prevu">—</div><div class="kpi-sub">budget Paris FY26</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Arrivées réalisées</div><div class="kpi-val" id="rc-arr-realise">—</div><div class="kpi-sub" id="rc-arr-sub">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Départs prévus 2026</div><div class="kpi-val" id="rc-dep-prevu">—</div><div class="kpi-sub">budget Paris FY26</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Départs réalisés</div><div class="kpi-val" id="rc-dep-realise">—</div><div class="kpi-sub">saisie manuelle</div></div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Synthèse agence — prévisionnel vs réalisé, par mois
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <button onclick="document.getElementById('imp-recrut').click()" style="font-size:11px;color:#fff;background:var(--klein);border:1px solid var(--klein);border-radius:2px;padding:3px 9px;cursor:pointer;">Importer un budget (xlsx)</button>
+            <input type="file" id="imp-recrut" accept=".xlsx" style="display:none" onchange="importRecrutPlan(this)">
+          </span>
+        </div>
+        <table class="dt"><colgroup><col style="width:26%"><col style="width:15%"><col style="width:15%"><col style="width:10%"><col style="width:17%"><col style="width:17%"></colgroup>
+        <thead><tr><th>Mois</th><th>Arr. prévues</th><th>Arr. réalisées</th><th>Écart</th><th>Dép. prévus</th><th>Dép. réalisés</th></tr></thead>
+        <tbody id="tb-rc-mois"></tbody><tfoot id="tf-rc-mois"></tfoot></table>
+        <div class="chart-hint">Prévisionnel : budget FY26 (postes à pourvoir / fins de contrat connues, Paris). Réalisé : signatures Slack confirmées + saisie manuelle.</div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Par practice — année 2026</div>
+        <table class="dt"><colgroup><col style="width:34%"><col style="width:14%"><col style="width:14%"><col style="width:10%"><col style="width:14%"><col style="width:14%"></colgroup>
+        <thead><tr><th>Practice</th><th>Arr. prévues</th><th>Arr. réalisées</th><th>Écart</th><th>Dép. prévus</th><th>Dép. réalisés</th></tr></thead>
+        <tbody id="tb-rc-practice"></tbody></table>
+        <div class="chart-hint">Les lignes « À confirmer » viennent de signatures Slack dont le libellé ne permettait pas de déduire la practice avec certitude.</div>
+      </div>
+      <div class="card-full">
+        <div class="ct">Ceux qui arrivent <span id="rc-arriv-count" style="font-weight:400;color:var(--gd);font-size:11px;"></span></div>
+        <table class="dt g"><colgroup><col style="width:14%"><col style="width:20%"><col style="width:28%"><col style="width:20%"><col style="width:10%"><col style="width:8%"></colgroup>
+        <thead><tr><th>Date</th><th>Nom</th><th>Poste</th><th>Practice</th><th>Contrat</th><th>Source</th></tr></thead>
+        <tbody id="tb-rc-arrivent"></tbody></table>
+      </div>
+      <div class="card-full">
+        <div class="ct">Ajouter une arrivée ou un départ</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+          <div><label style="font-size:10px;color:var(--gd);">Type</label><select id="rc-f-type" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"><option value="arrivee">Arrivée</option><option value="depart">Départ</option></select></div>
+          <div><label style="font-size:10px;color:var(--gd);">Date</label><input type="date" id="rc-f-date" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"></div>
+          <div><label style="font-size:10px;color:var(--gd);">Nom</label><input type="text" id="rc-f-nom" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"></div>
+          <div><label style="font-size:10px;color:var(--gd);">Poste</label><input type="text" id="rc-f-poste" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"></div>
+          <div><label style="font-size:10px;color:var(--gd);">Practice</label><select id="rc-f-practice" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;">
+            <option value="">— Choisir —</option><option>Data</option><option>Software Engineering</option><option>Cloud &amp; DevOps</option><option>Modern Architecture</option><option>PAD</option><option>Mobile</option><option value="Autre">Autre (préciser)</option>
+          </select></div>
+          <div><label style="font-size:10px;color:var(--gd);">Si « Autre »</label><input type="text" id="rc-f-practice-autre" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"></div>
+          <div><label style="font-size:10px;color:var(--gd);">Contrat</label><select id="rc-f-contrat" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"><option>CDI</option><option>Stage</option><option>Alternance</option><option value="External FR">Externe / freelance</option></select></div>
+          <div style="grid-column:span 2;"><label style="font-size:10px;color:var(--gd);">Note</label><input type="text" id="rc-f-note" style="width:100%;padding:6px;border:1px solid var(--gl);border-radius:2px;"></div>
+        </div>
+        <div style="margin-top:12px;"><button class="btn-a" onclick="addRecrutEvent()">Ajouter</button> <span id="rc-f-msg" style="font-size:12px;color:var(--green);margin-left:10px;"></span></div>
+      </div>
+      <details class="card-full" id="rc-journal-wrap" style="display:none;">
+        <summary style="cursor:pointer;font-family:'Saira Extra Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--deep);">Journal complet <span id="rc-journal-count" style="font-weight:400;color:var(--gd);font-size:11px;text-transform:none;letter-spacing:normal;"></span></summary>
+        <table class="dt" style="margin-top:1rem;"><colgroup><col style="width:10%"><col style="width:12%"><col style="width:18%"><col style="width:22%"><col style="width:16%"><col style="width:10%"><col style="width:12%"></colgroup>
+        <thead><tr><th>Type</th><th>Date</th><th>Nom</th><th>Poste</th><th>Practice</th><th>Statut</th><th>Source</th></tr></thead>
+        <tbody id="tb-rc-journal"></tbody></table>
+      </details>
     </div>
   </div>
 </div>
@@ -1340,6 +1399,257 @@ function buildMargeDashboards(){
   if(cnt)cnt.textContent=neg.length?('— '+neg.length+' projet(s), '+fCA(neg.reduce((s,r)=>s+r.marge,0))+' cumulés'):'';
   if(tbN)tbN.innerHTML=neg.map(r=>`<tr><td style="font-weight:600">${r.client}</td><td style="color:var(--gd)" title="${r.projet.replace(/"/g,'&quot;')}">${r.projet}</td><td style="color:var(--gd)">${r.commercial}</td><td>${fCA(r.ca)}</td><td>${fCA(r.couts)}</td><td style="font-weight:700;color:var(--red)">${fCA(r.marge)}</td></tr>`).join('');
 }
+/* ══ TAB RECRUTEMENT ══════════════════════════════════════
+ * Prévisionnel : budget Paris FY26 (postes à pourvoir + fins de contrat connues), figé en seed
+ * ci-dessous (import xlsx possible pour rafraîchir, voir importRecrutPlan). Réalisé : relevé
+ * manuel de #recrutement-signature (Paris, 2026-01-05 → 2026-07-09, canal lu intégralement) +
+ * saisie manuelle via le formulaire (accumulée dans localStorage, jamais remplacée en bloc). */
+const RC_MOIS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const RECRUT_PLAN_SEED=[
+{type:'arrivee',practice:"Data",date:'2026-01-15',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-02-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-02-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-02-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-02-28',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-03-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-03-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-03-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"Modern Architecture",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"PAD",date:'2026-04-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-05-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-05-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-05-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Modern Architecture",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"PAD",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-06-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-07-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-07-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-07-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-07-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-09-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-09-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-09-01',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-09-15',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-09-15',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-09-15',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-09-15',contrat:"CDI"},
+{type:'arrivee',practice:"Cloud & DevOps",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Modern Architecture",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"PAD",date:'2026-10-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-11-01',contrat:"CDI"},
+{type:'arrivee',practice:"Software Engineering",date:'2026-11-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-11-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-11-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-12-01',contrat:"CDI"},
+{type:'arrivee',practice:"Data",date:'2026-12-01',contrat:"CDI"},
+{type:'depart',practice:"Modern Architecture",date:'2026-01-30',contrat:"CDI",nom:"Vincent LACOSTE"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-01-30',contrat:"CDI",nom:"Christian Joseph DONATO"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-01-31',contrat:"External FR",nom:"Mourad Bencherchali"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-01-31',contrat:"External FR",nom:"Davy Nze"},
+{type:'depart',practice:"PAD",date:'2026-02-01',contrat:"CDI",nom:"Estelle ASCIAC"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-02-13',contrat:"CDI",nom:"Aylan SADJI"},
+{type:'depart',practice:"PAD",date:'2026-02-28',contrat:"CDI",nom:"Célia D'ALMEIDA AYIVI"},
+{type:'depart',practice:"Mobile",date:'2026-02-28',contrat:"CDI",nom:"Alexis BEAUDOIN"},
+{type:'depart',practice:"Software Engineering",date:'2026-02-28',contrat:"CDI",nom:"Vesna KLAJIC"},
+{type:'depart',practice:"Software Engineering",date:'2026-02-28',contrat:"CDI",nom:"Marwa BEN MASSEOUD"},
+{type:'depart',practice:"Software Engineering",date:'2026-03-30',contrat:"CDI",nom:"Nicolas GERCIN"},
+{type:'depart',practice:"Software Engineering",date:'2026-03-30',contrat:"CDI",nom:"Simon BOUNHOUANG"},
+{type:'depart',practice:"Software Engineering",date:'2026-03-30',contrat:"CDI",nom:"Guillaume HUMBERT"},
+{type:'depart',practice:"Software Engineering",date:'2026-03-30',contrat:"CDI",nom:"Clément TAMISIER"},
+{type:'depart',practice:"Software Engineering",date:'2026-03-30',contrat:"CDI",nom:"Sonia LAHCENE"},
+{type:'depart',practice:"PAD",date:'2026-04-30',contrat:"CDI",nom:"Emilie SIAU"},
+{type:'depart',practice:"PAD",date:'2026-04-30',contrat:"CDI",nom:"Antoine HULIN"},
+{type:'depart',practice:"Mobile",date:'2026-04-30',contrat:"CDI",nom:"Aïssam BOUZIAR"},
+{type:'depart',practice:"Software Engineering",date:'2026-04-30',contrat:"CDI",nom:"Rayane BENMAHROUCHE"},
+{type:'depart',practice:"Software Engineering",date:'2026-04-30',contrat:"CDI",nom:"Clément QUILLATEAU"},
+{type:'depart',practice:"Data",date:'2026-04-30',contrat:"CDI",nom:"Sarra KHAMMASSI"},
+{type:'depart',practice:"Data",date:'2026-04-30',contrat:"CDI",nom:"Abdoulaye HAMAT"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-04-30',contrat:"CDI",nom:"Thomas PIERSSON"},
+{type:'depart',practice:"Mobile",date:'2026-05-30',contrat:"CDI",nom:"Olivier GEFFROY"},
+{type:'depart',practice:"Mobile",date:'2026-05-30',contrat:"CDI",nom:"Paul RAPHANAUD"},
+{type:'depart',practice:"Software Engineering",date:'2026-05-30',contrat:"CDI",nom:"Victor ANTUNES DA SILVA"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-06-30',contrat:"CDI",nom:"Hamza BEKHTAOUI"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-06-30',contrat:"CDI",nom:"Silas MONNEY"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Cloud & DevOps",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Data",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Data",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Data",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Software Engineering",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Software Engineering",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Software Engineering",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Software Engineering",date:'2026-07-31',contrat:"Internship France",nom:"Stagiaire à nommer (Osaka)"},
+{type:'depart',practice:"Data",date:'2026-08-30',contrat:"CDI",nom:"Youssef MRABET"},
+{type:'depart',practice:"Software Engineering",date:'2026-09-01',contrat:"CDI",nom:"Romain PEREIRA"},
+{type:'depart',practice:"Data",date:'2026-09-30',contrat:"CDI",nom:"Augustin WATINE"},
+{type:'depart',practice:"Data",date:'2026-09-30',contrat:"CDI",nom:"Juliette CHABBAL"},
+{type:'depart',practice:"PAD",date:'2026-10-30',contrat:"CDI",nom:"Laurent BA"}
+];
+const RECRUT_EVENTS_SEED=[
+{id:"slack-001",type:'arrivee',practice:"Data",nom:"Yannick SOUPRAMANIEN",poste:"Stage — Data Analyst (promotion Osaka)",date:'2026-03-09',contrat:"Stage",statut:'confirmee',source:'slack',note:"Signature le 27/01/2026 (Joy NOMIS).",createdAt:"2026-01-27T15:33:25+01:00"},
+{id:"slack-002",type:'arrivee',practice:"Data",nom:"Adel ZAIRI",poste:"Stage — Data (promotion Osaka)",date:'2026-03-09',contrat:"Stage",statut:'confirmee',source:'slack',note:"Signature le 20/01/2026 (Karen STIQUE). Voir aussi la signature CDI du même, 02/11/2026.",createdAt:"2026-01-20T14:35:36+01:00"},
+{id:"slack-003",type:'arrivee',practice:"À confirmer — Tech Lead (practice non précisée dans Slack)",nom:"Mathieu RAKOTOARISOA",poste:"Tech Lead",date:'2026-05-11',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 11/02/2026 (Hatem M'hamdi).",createdAt:"2026-02-11T15:26:01+01:00"},
+{id:"slack-004",type:'arrivee',practice:"Cloud & DevOps",nom:"Elora TRASANCOS",poste:"Stage — Cloud & DevOps (promotion Osaka)",date:'2026-03-09',contrat:"Stage",statut:'confirmee',source:'slack',note:"Signature le 17/02/2026 (Nils BONDE) — première signature du canal.",createdAt:"2026-02-17T14:44:36+01:00"},
+{id:"slack-005",type:'arrivee',practice:"À confirmer — Archi Azure (Cloud & DevOps ou Modern Architecture ?)",nom:"Sofiene HAMOUDI",poste:"Architecte Azure",date:'2026-05-01',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 16/02/2026 (Karen STIQUE). Date d'arrivée « début mai » non précisée — approximée au 01/05.",createdAt:"2026-02-16T10:22:26+01:00"},
+{id:"slack-006",type:'arrivee',practice:"Data",nom:"Victoire AMOUH",poste:"Data Engineer Azure",date:'2026-05-11',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 26/02/2026 (Hatem M'hamdi).",createdAt:"2026-02-26T14:07:31+01:00"},
+{id:"slack-007",type:'arrivee',practice:"Data",nom:"Noureddine MESSAOUD",poste:"Azure Data Engineer",date:'2026-06-15',contrat:"CDI",statut:'annulee',source:'slack',note:"Signature le 06/03/2026 (Jennifer WONG) puis ANNULATION le 18/05/2026 — offre interne acceptée chez AG2R La Mondiale.",createdAt:"2026-03-06T13:47:26+01:00"},
+{id:"slack-008",type:'arrivee',practice:"Software Engineering",nom:"Nicolas DANG",poste:"SE Java Fullstack",date:'2026-06-01',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 09/03/2026 (Jennifer WONG).",createdAt:"2026-03-09T10:50:47+01:00"},
+{id:"slack-009",type:'arrivee',practice:"Data",nom:"Leblond DANDJINOU",poste:"Data Analyst (4 ans XP)",date:'2026-04-13',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 01/04/2026 (Joy NOMIS). Date d'arrivée annoncée « à confirmer ».",createdAt:"2026-04-01T18:58:00+02:00"},
+{id:"slack-010",type:'arrivee',practice:"À confirmer — libellé Slack \"DA\"",nom:"Mayeul DE ROUGE",poste:"DA",date:'2026-10-05',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 29/04/2026 (Nils BONDE). Libellé Slack \"DA\" non explicité.",createdAt:"2026-04-29T14:19:04+02:00"},
+{id:"slack-011",type:'arrivee',practice:"Cloud & DevOps",nom:"Houssem RIDENE",poste:"Cloud & DevOps",date:'2026-09-07',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 04/05/2026 (Nils BONDE).",createdAt:"2026-05-04T11:54:23+02:00"},
+{id:"slack-012",type:'arrivee',practice:"Data",nom:"Ishaq MERZOUG",poste:"Data Engineer senior AWS",date:'2026-09-07',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 05/05/2026 (Hatem M'hamdi).",createdAt:"2026-05-05T14:35:30+02:00"},
+{id:"slack-013",type:'arrivee',practice:"À confirmer — IA Engineer (Data ?)",nom:"Moussa ABOUBAKAR",poste:"IA Engineer",date:'2026-09-07',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 18/05/2026 (Karen STIQUE).",createdAt:"2026-05-18T11:26:50+02:00"},
+{id:"slack-014",type:'arrivee',practice:"À confirmer — Solution Architect Data&Cloud",nom:"Jérôme GUIBERT",poste:"Solution Architect Data & Cloud",date:'2026-09-01',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 19/05/2026 (Karen STIQUE). Date d'arrivée annoncée « septembre, date à définir » — approximée au 01/09.",createdAt:"2026-05-19T09:57:52+02:00"},
+{id:"slack-015",type:'arrivee',practice:"Cloud & DevOps",nom:"Nabil ADOUNI",poste:"Cloud & DevOps",date:'2026-09-14',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 27/05/2026 (Nils BONDE).",createdAt:"2026-05-27T16:30:58+02:00"},
+{id:"slack-016",type:'arrivee',practice:"Software Engineering",nom:"Thomas MAURIER",poste:"Développeur sénior Java",date:'2026-10-05',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 05/06/2026 (Hatem M'hamdi) — après un premier refus le 31/03/2026 (mission chez Canal+, offre différente).",createdAt:"2026-06-05T10:27:13+02:00"},
+{id:"slack-017",type:'arrivee',practice:"À confirmer — IA Eng (Data ?)",nom:"Reda ADARDOR",poste:"IA Engineer",date:'2026-10-05',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 12/06/2026 (Nils BONDE).",createdAt:"2026-06-12T13:36:06+02:00"},
+{id:"slack-018",type:'arrivee',practice:"À confirmer — Alternant PO",nom:"Haong-Long LUONG",poste:"Alternant PO",date:'2026-09-07',contrat:"Alternance",statut:'confirmee',source:'slack',note:"Signature le 30/06/2026 (Nils BONDE).",createdAt:"2026-06-30T11:25:34+02:00"},
+{id:"slack-019",type:'arrivee',practice:"Data",nom:"Adel ZAIRI",poste:"Data (promotion Osaka, ex-stagiaire)",date:'2026-11-02',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 30/06/2026 (Karen STIQUE) — conversion du stage signé le 20/01/2026.",createdAt:"2026-06-30T14:56:32+02:00"},
+{id:"slack-020",type:'arrivee',practice:"Data",nom:"Tom MAISONNEUVE",poste:"Data (promotion Osaka)",date:'2026-10-05',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 03/07/2026 (Jennifer WONG).",createdAt:"2026-07-03T16:48:39+02:00"},
+{id:"slack-021",type:'arrivee',practice:"Software Engineering",nom:"Quentin NEDELEC",poste:"Software Engineer (promotion Osaka)",date:'2026-09-07',contrat:"CDI",statut:'confirmee',source:'slack',note:"Signature le 08/07/2026 (Karen STIQUE) — dernier message lu dans le canal.",createdAt:"2026-07-08T09:25:18+02:00"}
+];
+function getRecrutPlan(){try{const s=localStorage.getItem('ippon_recrut_plan');if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)return a;}}catch(e){}return RECRUT_PLAN_SEED;}
+function getRecrutManual(){try{const a=JSON.parse(localStorage.getItem('ippon_recrut_manuel')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function saveRecrutManual(a){localStorage.setItem('ippon_recrut_manuel',JSON.stringify(a));}
+function getRecrutEvents(){return RECRUT_EVENTS_SEED.concat(getRecrutManual());}
+function rcMonthKey(iso){return (iso||'').slice(0,7);}
+function rcDateFr(iso){const m=(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:(iso||'—');}
+function rcEcart(prevu,realise){const e=realise-prevu;if(e===0)return '<span style="color:var(--gm)">=</span>';const col=e>0?'#004C4C':'#FF8A00';return `<span style="color:${col};font-weight:700">${e>0?'+':''}${e}</span>`;}
+function buildRecrutement(){
+  const plan=getRecrutPlan();
+  const events=getRecrutEvents();
+  const confirmed=events.filter(e=>e.statut==='confirmee');
+  const annee=2026;
+  let totP_A=0,totR_A=0,totP_D=0,totR_D=0;
+  const rowsHtml=[];
+  for(let m=1;m<=12;m++){
+    const key=annee+'-'+String(m).padStart(2,'0');
+    const pA=plan.filter(r=>r.type==='arrivee'&&rcMonthKey(r.date)===key).length;
+    const pD=plan.filter(r=>r.type==='depart'&&rcMonthKey(r.date)===key).length;
+    const rA=confirmed.filter(e=>e.type==='arrivee'&&rcMonthKey(e.date)===key).length;
+    const rD=confirmed.filter(e=>e.type==='depart'&&rcMonthKey(e.date)===key).length;
+    totP_A+=pA;totR_A+=rA;totP_D+=pD;totR_D+=rD;
+    rowsHtml.push(`<tr><td>${RC_MOIS[m-1]} ${annee}</td><td style="color:var(--gd)">${pA}</td><td style="font-weight:700;color:var(--klein)">${rA}</td><td>${rcEcart(pA,rA)}</td><td style="color:var(--gd)">${pD}</td><td style="font-weight:700;color:#6D0718">${rD}</td></tr>`);
+  }
+  const tb=document.getElementById('tb-rc-mois');if(tb)tb.innerHTML=rowsHtml.join('');
+  const tf=document.getElementById('tf-rc-mois');
+  if(tf)tf.innerHTML=`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Année ${annee}</td><td>${totP_A}</td><td style="color:var(--klein)">${totR_A}</td><td>${rcEcart(totP_A,totR_A)}</td><td>${totP_D}</td><td style="color:#6D0718">${totR_D}</td></tr>`;
+  const S=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  S('rc-arr-prevu',totP_A);S('rc-arr-realise',totR_A);S('rc-arr-sub',totR_A+' / '+totP_A+' prévues');
+  S('rc-dep-prevu',totP_D);S('rc-dep-realise',totR_D);
+  const practiceSet=new Set([...plan.map(r=>r.practice),...confirmed.map(e=>e.practice)]);
+  const byPractice=[...practiceSet].map(p=>({
+    p,
+    pA:plan.filter(r=>r.type==='arrivee'&&r.practice===p).length,
+    rA:confirmed.filter(e=>e.type==='arrivee'&&e.practice===p).length,
+    pD:plan.filter(r=>r.type==='depart'&&r.practice===p).length,
+    rD:confirmed.filter(e=>e.type==='depart'&&e.practice===p).length,
+  })).sort((a,b)=>b.pA-a.pA||b.rA-a.rA);
+  const tbP=document.getElementById('tb-rc-practice');
+  if(tbP)tbP.innerHTML=byPractice.map(r=>{
+    const isConfirm=r.p.indexOf('À confirmer')===0;
+    const nameHtml=isConfirm?`<span style="color:#FF8A00" title="${r.p.replace(/"/g,'&quot;')}">${r.p}</span>`:(r.p||'(non renseigné)');
+    return `<tr><td>${nameHtml}</td><td style="color:var(--gd)">${r.pA}</td><td style="font-weight:700;color:var(--klein)">${r.rA}</td><td>${rcEcart(r.pA,r.rA)}</td><td style="color:var(--gd)">${r.pD}</td><td style="font-weight:700;color:#6D0718">${r.rD}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" style="color:var(--gm)">Aucune donnée.</td></tr>';
+  const today=new Date().toISOString().slice(0,10);
+  const upcoming=confirmed.filter(e=>e.type==='arrivee'&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  S('rc-arriv-count','— '+upcoming.length+' personne(s)');
+  const tbA=document.getElementById('tb-rc-arrivent');
+  if(tbA)tbA.innerHTML=upcoming.length?upcoming.map(e=>{
+    const pr=e.practice.indexOf('À confirmer')===0?'<span style="color:#FF8A00">à confirmer</span>':e.practice;
+    return `<tr><td style="font-weight:600">${rcDateFr(e.date)}</td><td>${e.nom}</td><td style="color:var(--gd)" title="${(e.poste||'').replace(/"/g,'&quot;')}">${e.poste||'—'}</td><td>${pr}</td><td style="color:var(--gd)">${e.contrat||'—'}</td><td style="font-size:11px;color:var(--gm)">${e.source==='slack'?'Slack':'Manuel'}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--gm)">Aucune arrivée confirmée à venir.</td></tr>';
+  const journal=[...events].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const jw=document.getElementById('rc-journal-wrap');if(jw)jw.style.display=journal.length?'block':'none';
+  S('rc-journal-count','— '+journal.length+' événement(s)');
+  const tbJ=document.getElementById('tb-rc-journal');
+  if(tbJ)tbJ.innerHTML=journal.map(e=>{
+    const opacity=e.statut==='annulee'?'opacity:.5;':'';
+    return `<tr style="${opacity}"><td style="color:${e.type==='arrivee'?'#004C4C':'#6D0718'}">${e.type==='arrivee'?'Arrivée':'Départ'}</td><td>${rcDateFr(e.date)}</td><td>${e.nom}</td><td style="color:var(--gd)">${e.poste||'—'}</td><td style="color:var(--gd)" title="${(e.practice||'').replace(/"/g,'&quot;')}">${e.practice}</td><td>${e.statut==='annulee'?'Annulée':'Confirmée'}</td><td style="font-size:11px;color:var(--gm)">${e.source==='slack'?'Slack':'Manuel'}</td></tr>`;
+  }).join('');
+}
+function addRecrutEvent(){
+  const type=document.getElementById('rc-f-type').value;
+  const date=document.getElementById('rc-f-date').value;
+  const nom=document.getElementById('rc-f-nom').value.trim();
+  const poste=document.getElementById('rc-f-poste').value.trim();
+  let practice=document.getElementById('rc-f-practice').value;
+  const practiceAutre=document.getElementById('rc-f-practice-autre').value.trim();
+  const contrat=document.getElementById('rc-f-contrat').value;
+  const note=document.getElementById('rc-f-note').value.trim();
+  const msg=document.getElementById('rc-f-msg');
+  if(!date||!nom||!practice){if(msg){msg.style.color='#6D0718';msg.textContent='Date, nom et practice sont obligatoires.';}return;}
+  if(practice==='Autre'&&practiceAutre)practice='À confirmer — '+practiceAutre;
+  const event={id:'manuel-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),type,practice,nom,poste,date,contrat,statut:'confirmee',source:'manuel',note,createdAt:new Date().toISOString()};
+  const manual=getRecrutManual();manual.push(event);saveRecrutManual(manual);
+  ['rc-f-nom','rc-f-poste','rc-f-practice-autre','rc-f-note'].forEach(id=>{document.getElementById(id).value='';});
+  document.getElementById('rc-f-date').value='';
+  document.getElementById('rc-f-practice').value='';
+  if(msg){msg.style.color='#004C4C';msg.textContent='Ajouté.';setTimeout(()=>{msg.textContent='';},2500);}
+  buildRecrutement();
+}
+function isoDayXl(d){const rounded=new Date(Math.round(d.getTime()/86400000)*86400000);return rounded.toISOString().slice(0,10);}
+function parseRecrutWorkbook(ab,agenceFiltre,annee){
+  agenceFiltre=agenceFiltre||'Paris';annee=annee||2026;
+  const wb=XLSX.read(new Uint8Array(ab),{type:'array',cellDates:true});
+  const sheet=locateSheetXl(wb,['agence','practice','nom','prenom','type contrat','date debut','date fin']);
+  if(!sheet)return {rows:[],rowsRead:0,agence:null};
+  const matrix=sheet.matrix,cols=sheet.cols,startRow=sheet.startRow;
+  const agenceCol=firstColXl(cols,'agence'),practiceCol=firstColXl(cols,'practice'),nomCol=firstColXl(cols,'nom'),prenomCol=firstColXl(cols,'prenom'),contratCol=firstColXl(cols,'type contrat'),dateDebutCol=firstColXl(cols,'date debut'),dateFinCol=firstColXl(cols,'date fin');
+  const rows=[];let rowsRead=0,agenceDetectee=null;
+  for(let r=startRow;r<matrix.length;r++){
+    const row=matrix[r];if(!row||row.every(c=>c==null||c===''))continue;
+    const agence=strXl(row[agenceCol]);if(!agence)continue;
+    rowsRead++;if(!agenceDetectee)agenceDetectee=agence;
+    if(agenceFiltre&&agence!==agenceFiltre)continue;
+    const practice=strXl(row[practiceCol]);if(!practice)continue;
+    const nomVal=row[nomCol],prenomVal=row[prenomCol];
+    const estPlaceholder=typeof nomVal!=='string'||nomVal.trim()==='';
+    const contrat=strXl(row[contratCol]);
+    const dateDebut=row[dateDebutCol],dateFin=row[dateFinCol];
+    if(estPlaceholder&&dateDebut instanceof Date){
+      const iso=isoDayXl(dateDebut);
+      if(iso.slice(0,4)===String(annee))rows.push({type:'arrivee',practice,date:iso,contrat});
+    }
+    if(!estPlaceholder&&dateFin instanceof Date){
+      const iso=isoDayXl(dateFin);
+      if(iso.slice(0,4)===String(annee)){
+        const nom=(strXl(prenomVal)+' '+strXl(nomVal)).trim();
+        rows.push({type:'depart',practice,date:iso,contrat,nom});
+      }
+    }
+  }
+  return {rows,rowsRead,agence:agenceDetectee};
+}
+function importRecrutPlan(el){
+  const f=el.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    let result;
+    try{result=parseRecrutWorkbook(ev.target.result,'Paris',2026);}
+    catch(e){alert("Fichier illisible. Vérifie qu'il s'agit bien du classeur budget (feuille avec Agence/Practice/NOM/Prénom/Type Contrat/Date début/Date fin).");return;}
+    if(!result.rows.length){alert('Aucune ligne exploitable trouvée pour Paris 2026 dans ce classeur.');return;}
+    localStorage.setItem('ippon_recrut_plan',JSON.stringify(result.rows));
+    buildRecrutement();
+    alert(result.rows.length+' lignes de prévisionnel importées ('+result.rows.filter(x=>x.type==='arrivee').length+' arrivées, '+result.rows.filter(x=>x.type==='depart').length+' départs).');
+  };
+  r.readAsArrayBuffer(f);
+  el.value='';
+}
 function yearFrac(){const n=new Date();const s=new Date(n.getFullYear(),0,1);const e=new Date(n.getFullYear()+1,0,1);return (n-s)/(e-s);}
 function pfPeriode(p){if(!p)return 'à date';const m=p.match(/^(\d{4})-(\d{2})$/);if(!m)return p;return new Date(+m[1],+m[2]-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
 function pfState(av,pace){if(av>=100)return['#004C4C','Objectif atteint'];if(av>=pace)return['#00CCA5','Dans les temps'];if(av>=pace*0.8)return['#FF8A00','À surveiller'];return['#FF4C41','En retard'];}
@@ -1445,7 +1755,7 @@ function loadCsv(text,isAdd,isRestore){
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildRecrutement();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
