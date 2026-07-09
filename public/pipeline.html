@@ -609,7 +609,7 @@ select{appearance:auto;}
   <div id="tab-recrutement" class="tab-panel">
     <div class="content">
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Arrivées prévues 2026</div><div class="kpi-val" id="rc-arr-prevu">—</div><div class="kpi-sub">détail budget FY26 (objectif officiel : 53)</div></div>
+        <div class="kpi"><div class="kpi-lbl">Arrivées prévues 2026</div><div class="kpi-val" id="rc-arr-prevu">—</div><div class="kpi-sub" id="rc-arr-prevu-sub">objectif officiel Paris</div></div>
         <div class="kpi g"><div class="kpi-lbl">Arrivées réalisées</div><div class="kpi-val" id="rc-arr-realise">—</div><div class="kpi-sub" id="rc-arr-sub">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Départs prévus 2026</div><div class="kpi-val" id="rc-dep-prevu">—</div><div class="kpi-sub">budget Paris FY26</div></div>
         <div class="kpi r"><div class="kpi-lbl">Départs réalisés</div><div class="kpi-val" id="rc-dep-realise">—</div><div class="kpi-sub">saisie manuelle</div></div>
@@ -1590,7 +1590,7 @@ function buildRecrutement(){
   const tf=document.getElementById('tf-rc-mois');
   if(tf)tf.innerHTML=`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Année ${annee}</td><td>${totP_A}</td><td style="color:var(--klein)">${totR_A}</td><td>${rcEcart(totP_A,totR_A)}</td><td>${totP_D}</td><td style="color:#6D0718">${totR_D}</td></tr>`;
   const S=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  S('rc-arr-prevu',totP_A);S('rc-arr-realise',totR_A);S('rc-arr-sub',Math.round(totR_A/RC_OBJECTIF_ARRIVEES_2026*100)+'% de l\'objectif ('+RC_OBJECTIF_ARRIVEES_2026+')');
+  S('rc-arr-prevu',RC_OBJECTIF_ARRIVEES_2026);S('rc-arr-prevu-sub','objectif officiel Paris (détail budget mensuel : '+totP_A+')');S('rc-arr-realise',totR_A);S('rc-arr-sub',Math.round(totR_A/RC_OBJECTIF_ARRIVEES_2026*100)+'% de l\'objectif ('+RC_OBJECTIF_ARRIVEES_2026+')');
   S('rc-dep-prevu',totP_D);S('rc-dep-realise',totR_D);
   const practiceSet=new Set([...plan.map(r=>r.practice),...confirmed.map(e=>e.practice)]);
   const byPractice=[...practiceSet].map(p=>({
