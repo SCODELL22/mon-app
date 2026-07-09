@@ -631,10 +631,11 @@ select{appearance:auto;}
         <table class="dt"><colgroup><col style="width:34%"><col style="width:14%"><col style="width:14%"><col style="width:10%"><col style="width:14%"><col style="width:14%"></colgroup>
         <thead><tr><th>Practice</th><th>Arr. prévues</th><th>Arr. réalisées</th><th>Écart</th><th>Dép. prévus</th><th>Dép. réalisés</th></tr></thead>
         <tbody id="tb-rc-practice"></tbody></table>
-        <div class="chart-hint">Les lignes « À confirmer » viennent de signatures Slack dont le libellé ne permettait pas de déduire la practice avec certitude.</div>
+        <div class="chart-hint">Recrutement = CDI dans les 6 practices de delivery uniquement (hors stages, CDD, fonctions support). <span id="rc-hors-perimetre"></span></div>
       </div>
       <div class="card-full">
         <div class="ct">Ceux qui arrivent <span id="rc-arriv-count" style="font-weight:400;color:var(--gd);font-size:11px;"></span></div>
+        <div class="chart-hint">Vue large : toutes arrivées confirmées à venir, tous contrats et practices confondus (y compris hors périmètre recrutement CDI delivery).</div>
         <table class="dt g"><colgroup><col style="width:14%"><col style="width:20%"><col style="width:28%"><col style="width:20%"><col style="width:10%"><col style="width:8%"></colgroup>
         <thead><tr><th>Date</th><th>Nom</th><th>Poste</th><th>Practice</th><th>Contrat</th><th>Source</th></tr></thead>
         <tbody id="tb-rc-arrivent"></tbody></table>
@@ -1570,10 +1571,19 @@ function rcDateFr(iso){const m=(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);retur
 function rcEcart(prevu,realise){const e=realise-prevu;if(e===0)return '<span style="color:var(--gm)">=</span>';const col=e>0?'#004C4C':'#FF8A00';return `<span style="color:${col};font-weight:700">${e>0?'+':''}${e}</span>`;}
 function rcSourceLabel(s){return s==='integration'?'Intégration RH':s==='slack'?'Slack':'Saisie manuelle';}
 const RC_OBJECTIF_ARRIVEES_2026=53;
+// « Recrutement » au sens strict de l'agence = CDI dans l'une des 6 practices de delivery.
+// Exclut les stages, CDD et les fonctions support (STAFF : recrutement, RH, gestion de projet,
+// juridique, UX...) — confirmé par la responsable RH : 19 recrutements CDI delivery à ce jour,
+// pas 35 (qui incluait tout confondu). Le prévisionnel budget suit déjà ce même périmètre.
+const RC_PRACTICES_DELIVERY=['Data','Software Engineering','Cloud & DevOps','Modern Architecture','PAD','Mobile'];
+function rcIsRecrutementCdi(e){return RC_PRACTICES_DELIVERY.indexOf(e.practice)>=0 && e.contrat==='CDI';}
 function buildRecrutement(){
-  const plan=getRecrutPlan();
-  const events=getRecrutEvents();
-  const confirmed=events.filter(e=>e.statut==='confirmee');
+  const planAll=getRecrutPlan();
+  const eventsAll=getRecrutEvents();
+  const confirmedAll=eventsAll.filter(e=>e.statut==='confirmee');
+  const plan=planAll.filter(rcIsRecrutementCdi);
+  const confirmed=confirmedAll.filter(rcIsRecrutementCdi);
+  const horsPerimetre=confirmedAll.filter(e=>!rcIsRecrutementCdi(e));
   const annee=2026;
   let totP_A=0,totR_A=0,totP_D=0,totR_D=0;
   const rowsHtml=[];
@@ -1606,15 +1616,18 @@ function buildRecrutement(){
     const nameHtml=isConfirm?`<span style="color:#FF8A00" title="${r.p.replace(/"/g,'&quot;')}">${r.p}</span>`:(r.p||'(non renseigné)');
     return `<tr><td>${nameHtml}</td><td style="color:var(--gd)">${r.pA}</td><td style="font-weight:700;color:var(--klein)">${r.rA}</td><td>${rcEcart(r.pA,r.rA)}</td><td style="color:var(--gd)">${r.pD}</td><td style="font-weight:700;color:#6D0718">${r.rD}</td></tr>`;
   }).join('')||'<tr><td colspan="6" style="color:var(--gm)">Aucune donnée.</td></tr>';
+  const horsA=horsPerimetre.filter(e=>e.type==='arrivee').length;
+  const horsD=horsPerimetre.filter(e=>e.type==='depart').length;
+  S('rc-hors-perimetre','Hors périmètre (stages/CDD/STAFF), non comptées ci-dessus : '+horsA+' arrivée(s), '+horsD+' départ(s) — visibles dans le journal complet.');
   const today=new Date().toISOString().slice(0,10);
-  const upcoming=confirmed.filter(e=>e.type==='arrivee'&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const upcoming=confirmedAll.filter(e=>e.type==='arrivee'&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
   S('rc-arriv-count','— '+upcoming.length+' personne(s)');
   const tbA=document.getElementById('tb-rc-arrivent');
   if(tbA)tbA.innerHTML=upcoming.length?upcoming.map(e=>{
     const pr=e.practice.indexOf('À confirmer')===0?'<span style="color:#FF8A00">à confirmer</span>':e.practice;
     return `<tr><td style="font-weight:600">${rcDateFr(e.date)}</td><td>${e.nom}</td><td style="color:var(--gd)" title="${(e.poste||'').replace(/"/g,'&quot;')}">${e.poste||'—'}</td><td>${pr}</td><td style="color:var(--gd)">${e.contrat||'—'}</td><td style="font-size:11px;color:var(--gm)">${rcSourceLabel(e.source)}</td></tr>`;
   }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--gm)">Aucune arrivée confirmée à venir.</td></tr>';
-  const journal=[...events].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const journal=[...eventsAll].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const jw=document.getElementById('rc-journal-wrap');if(jw)jw.style.display=journal.length?'block':'none';
   S('rc-journal-count','— '+journal.length+' événement(s)');
   const tbJ=document.getElementById('tb-rc-journal');
