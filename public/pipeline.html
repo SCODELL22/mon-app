@@ -213,14 +213,12 @@ select{appearance:auto;}
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
     <button class="tab-btn" data-tab="performance">Performance</button>
-    <button class="tab-btn" data-tab="atterrissage">Atterrissage</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
     <button class="tab-btn" data-tab="perdues">Perdues</button>
     <button class="tab-btn" data-tab="compare">Comparatif G/P</button>
     <button class="tab-btn" data-tab="evolution">Évolution</button>
     <button class="tab-btn" data-tab="dynamique">Dynamique mensuelle</button>
-    <button class="tab-btn" data-tab="perduesmonth">Perdues par mois</button>
     <button class="tab-btn" data-tab="qualite">Qualité saisie</button>
     <button class="tab-btn" data-tab="recrutement">Recrutement</button>
   </div>
@@ -325,23 +323,6 @@ select{appearance:auto;}
         <table class="dt"><colgroup><col style="width:30%"><col style="width:22%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
         <thead><tr><th>Client</th><th>Commercial</th><th>CA</th><th>Marge</th><th>Marge %</th></tr></thead>
         <tbody id="tb-mg-top"></tbody></table>
-      </div>
-    </div>
-  </div>
-  <!-- TAB ATTERRISSAGE -->
-  <div id="tab-atterrissage" class="tab-panel">
-    <div class="content">
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Ce trimestre — atterrissage</div><div class="kpi-val" id="at-cur">—</div><div class="kpi-sub" id="at-cur-q">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Trimestre prochain — pondéré</div><div class="kpi-val" id="at-next">—</div><div class="kpi-sub" id="at-next-q">—</div></div>
-        <div class="kpi y"><div class="kpi-lbl">En retard (à requalifier)</div><div class="kpi-val" id="at-late">—</div><div class="kpi-sub" id="at-late-sub">date de clôture dépassée</div></div>
-        <div class="kpi"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="at-nod">—</div><div class="kpi-sub" id="at-nod-sub">non projeté</div></div>
-      </div>
-      <div class="card-full">
-        <div class="ct">Atterrissage par trimestre <span style="font-weight:400;color:var(--gd);font-size:11px;">— CA gagné (sécurisé) + pondéré (attendu), selon la date de clôture</span></div>
-        <div id="leg-att" class="leg"></div>
-        <div class="chart-wrap" style="height:300px;"><canvas id="ch-att"></canvas></div>
-        <div class="chart-hint">Les opportunités ouvertes à date dépassée ou sans date ne sont pas projetées dans un trimestre (voir les indicateurs ci-dessus).</div>
       </div>
     </div>
   </div>
@@ -545,33 +526,6 @@ select{appearance:auto;}
         <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>CA envisagé</th><th>Commercial</th><th>Créée le</th></tr></thead>
         <tbody id="tb-dyn-new"></tbody></table>
         <div id="tb-dyn-new-empty" class="empty" style="display:none;">Aucun nouveau besoin ce mois.</div>
-      </div>
-    </div>
-  </div>
-  <!-- TAB PERDUES PAR MOIS -->
-  <div id="tab-perduesmonth" class="tab-panel">
-    <div class="content">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:1.5rem;flex-wrap:wrap;">
-        <div style="font-family:'Saira Extra Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--deep);letter-spacing:.04em;text-transform:uppercase;">Perdues par mois</div>
-        <select id="pm-month-sel" style="font-family:'Open Sans',sans-serif;font-size:13px;color:var(--deep);background:var(--white);border:1px solid var(--border);border-radius:2px;padding:6px 12px;cursor:pointer;"></select>
-      </div>
-      <div class="kpi-grid">
-        <div class="kpi r"><div class="kpi-lbl">Nb perdues</div><div class="kpi-val" id="pm-nb"></div><div class="kpi-sub">ce mois</div></div>
-        <div class="kpi r"><div class="kpi-lbl">CA perdu</div><div class="kpi-val" id="pm-ca"></div><div class="kpi-sub">CA envisagé</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Durée moy.</div><div class="kpi-val" id="pm-dur"></div><div class="kpi-sub">avant perte</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Motif principal</div><div class="kpi-val" id="pm-motif" style="font-size:.85rem;padding-top:4px;line-height:1.1;"></div><div class="kpi-sub">le plus fréquent</div></div>
-      </div>
-      <div class="g2">
-        <div class="card"><div class="ct r">CA perdu par commercial</div><div class="chart-wrap" id="wrap-pm-comm" style="height:260px;"><canvas id="ch-pm-comm" style="cursor:pointer;"></canvas></div><div class="chart-hint">Cliquez pour le détail</div></div>
-        <div class="card"><div class="ct r">CA perdu par pôle</div><div id="leg-pm-pole" class="leg"></div><div class="chart-wrap" style="height:260px;"><canvas id="ch-pm-pole" style="cursor:pointer;"></canvas></div><div class="chart-hint">Cliquez pour le détail</div></div>
-      </div>
-      <div class="card-full"><div class="ct r">CA perdu par client (top 10)</div><div class="chart-wrap" id="wrap-pm-client" style="height:300px;"><canvas id="ch-pm-client" style="cursor:pointer;"></canvas></div><div class="chart-hint">Cliquez pour voir le détail</div></div>
-      <div class="card-full"><div class="ct r">Évolution des perdues mois par mois — nb et CA</div><div id="leg-pm-evo" class="leg"></div><div class="chart-wrap" style="height:280px;"><canvas id="ch-pm-evo"></canvas></div></div>
-      <div class="card-full"><div class="ct r">Détail des opportunités perdues ce mois</div>
-        <table class="dt r"><colgroup><col style="width:25%"><col style="width:17%"><col style="width:11%"><col style="width:11%"><col style="width:14%"><col style="width:12%"><col style="width:10%"></colgroup>
-        <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>CA</th><th>Commercial</th><th>Fermée le</th><th>Motif</th></tr></thead>
-        <tbody id="tb-pm"></tbody></table>
-        <div id="tb-pm-empty" class="empty" style="display:none;">Aucune perte ce mois.</div>
       </div>
     </div>
   </div>
@@ -1749,42 +1703,6 @@ function buildPerformance(){
   if(na&&na.ca!==0)naR=`<tr style="color:var(--gm)"><td style="font-style:italic">Non attribué</td><td></td><td>${fCA(na.ca)}</td><td></td><td>${fCA(na.marge)}</td><td></td></tr>`;
   tf.innerHTML=naR+`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tobj)}</td><td style="color:#004C4C">${fCA(Tca)}</td><td>${Math.round(Tav)}%</td><td>${fCA(Tma)} <span style="font-size:10px;color:var(--gm)">${Tca>0?(Tma/Tca*100).toFixed(1).replace('.',','):0}%</span></td><td>${pfEcart(Tca-Tobj)}</td></tr>`;
 }
-/* ══ TAB ATTERRISSAGE TRIMESTRIEL ═════════════════════════ */
-function attCloture(r){return pd(gf(r,'Date de clôture','Date de clôture'));}
-function quarterKey(d){return d?d.getFullYear()+'-T'+(Math.floor(d.getMonth()/3)+1):null;}
-function quarterLabel(k){const p=k.split('-T');return 'T'+p[1]+' '+p[0];}
-function buildAtterrissage(rows){
-  const today=new Date();today.setHours(0,0,0,0);
-  const Q={};let lateN=0,latePond=0,nodN=0,nodPond=0;
-  const bk=k=>{if(!Q[k])Q[k]={gagne:0,pondere:0,brut:0,count:0};return Q[k];};
-  rows.forEach(r=>{
-    const et=getEtat(r);
-    if(GAG.includes(et)){const k=quarterKey(attCloture(r));if(k)bk(k).gagne+=getCA(r);return;}
-    if(!ENC.includes(et))return;
-    const d=attCloture(r);
-    if(!d){nodN++;nodPond+=getCAP(r);return;}
-    if(d<today){lateN++;latePond+=getCAP(r);return;}
-    const b=bk(quarterKey(d));b.pondere+=getCAP(r);b.brut+=getCA(r);b.count++;
-  });
-  const keys=Object.keys(Q).sort();
-  const curK=quarterKey(today);
-  const cur=Q[curK]||{gagne:0,pondere:0};
-  const nextK=keys.filter(k=>k>curK)[0]||null;
-  document.getElementById('at-cur').textContent=fCA(cur.gagne+cur.pondere);
-  document.getElementById('at-cur-q').textContent=quarterLabel(curK);
-  document.getElementById('at-next').textContent=nextK?fCA(Q[nextK].pondere):'—';
-  document.getElementById('at-next-q').textContent=nextK?quarterLabel(nextK):'aucun trimestre à venir';
-  document.getElementById('at-late').textContent=fCA(latePond);
-  document.getElementById('at-late-sub').textContent=lateN+' opp. ouverte'+(lateN>1?'s':'')+' · à requalifier';
-  document.getElementById('at-nod').textContent=nodN;
-  document.getElementById('at-nod-sub').textContent=fCA(nodPond)+' pondéré · non projeté';
-  document.getElementById('leg-att').innerHTML=`<span class="leg-i"><span class="leg-s" style="background:#004C4C"></span>Gagné (sécurisé)</span><span class="leg-i"><span class="leg-s" style="background:${BL}"></span>Pondéré (attendu)</span>`;
-  dch('att');
-  CH['att']=new Chart(document.getElementById('ch-att'),{type:'bar',data:{labels:keys.map(quarterLabel),datasets:[
-    {label:'Gagné',data:keys.map(k=>Math.round(Q[k].gagne)),backgroundColor:'#004C4C',borderRadius:2,borderWidth:0,stack:'s'},
-    {label:'Pondéré',data:keys.map(k=>Math.round(Q[k].pondere)),backgroundColor:BL,borderRadius:2,borderWidth:0,stack:'s'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>c[0].label,label:c=>' '+c.dataset.label+': '+fCA(c.raw)}}},scales:{x:{...SC.x,stacked:true,grid:{display:false}},y:{...SC.y,stacked:true,ticks:{...SC.y.ticks,callback:v=>fCA(v)}}}}});
-}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
 function loadCsv(text,isAdd,isRestore){
   const rows=parseCsv(text);
@@ -1809,7 +1727,7 @@ function loadCsv(text,isAdd,isRestore){
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildRecrutement();buildAtterrissage(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildPerduesMois(rows);buildQualite(rows);
+    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildRecrutement();buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildQualite(rows);
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
@@ -1946,65 +1864,6 @@ function buildDynamique(rows, selectedMonth){
   [...newOpp].sort((a,b)=>getCA(b)-getCA(a)).forEach(r=>{const d=getCreation(r);const tr=document.createElement('tr');tr.innerHTML=`<td title="${gf(r,'Titre')}">${gf(r,'Titre')||'—'}</td><td>${gf(r,'Société - Nom','Société - Nom')||'—'}</td><td>${getPole(r)}</td><td style="font-weight:700">${fCA(getCA(r))}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;tb.appendChild(tr);});
 }
 document.getElementById('dyn-month-sel').addEventListener('change',e=>{if(DYN_ROWS.length)buildDynamique(DYN_ROWS,e.target.value);});
-/* ══ TAB PERDUES PAR MOIS ═════════════════════════════════ */
-let PM_ROWS=[];
-function buildPerduesMois(rows, selectedMonth){
-  PM_ROWS=rows;
-  const real=rows.filter(r=>!isProjetInterne(r));
-  const perduesAll=real.filter(r=>PER.includes(getEtat(r)));
-  const months=Array.from(new Set(perduesAll.map(r=>monthKey(getCloture(r))).filter(Boolean))).sort();
-  populateMonthSel('pm-month-sel',months,!selectedMonth);
-  if(selectedMonth)document.getElementById('pm-month-sel').value=selectedMonth;
-  const curMK=document.getElementById('pm-month-sel').value||months[months.length-1];
-  const perduesMois=perduesAll.filter(r=>monthKey(getCloture(r))===curMK);
-  const caT=perduesMois.reduce((s,r)=>s+getCA(r),0);
-  const durees=perduesMois.map(r=>{const d1=getCreation(r),d2=getCloture(r);return d1&&d2?Math.round((d2-d1)/86400000):null;}).filter(x=>x!==null&&x>=0);
-  const avgDur=durees.length?Math.round(durees.reduce((a,b)=>a+b,0)/durees.length):null;
-  const byMotif=groupSum(perduesMois,r=>gf(r,'Étape - motif','Étape - motif')||'Non renseigné',()=>1);
-  const topMotif=sortedE(byMotif)[0];
-  document.getElementById('pm-nb').textContent=perduesMois.length;
-  document.getElementById('pm-ca').textContent=fCA(caT);
-  document.getElementById('pm-dur').textContent=avgDur!==null?avgDur+'j':'—';
-  document.getElementById('pm-motif').textContent=topMotif?topMotif[0]:'—';
-  /* Bar commercial */
-  const byComm=groupSum(perduesMois,getComm,getCA);
-  const cL=sortedE(byComm).map(e=>e[0]);
-  document.getElementById('wrap-pm-comm').style.height=Math.max(cL.length*44+60,120)+'px';
-  dch('pm-comm');
-  CH['pm-comm']=new Chart(document.getElementById('ch-pm-comm'),{type:'bar',data:{labels:cL,datasets:[{data:cL.map(k=>Math.round(byComm[k])),backgroundColor:'#FF4C41',borderRadius:2,borderWidth:0}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fCA(c.raw)+' — cliquez'}}},scales:{x:{...SC.x,ticks:{...SC.x.ticks,callback:v=>fCA(v)}},y:{...SC.y,grid:{display:false}}},onClick:(evt,els)=>{if(els.length){openDrill(cL[els[0].index],'Perdues ce mois — commercial',perduesMois.filter(r=>getComm(r)===cL[els[0].index]),'r');}}}});
-  /* Donut pôle */
-  const byPole=groupSum(perduesMois,getPole,getCA);
-  const pL=sortedE(byPole).map(e=>e[0]);
-  dch('pm-pole');
-  document.getElementById('leg-pm-pole').innerHTML=pL.map((l,i)=>`<span class="leg-i"><span class="leg-s" style="background:${PAL[i%PAL.length]}"></span>${l} · ${fCA(byPole[l])}</span>`).join('');
-  CH['pm-pole']=new Chart(document.getElementById('ch-pm-pole'),{type:'doughnut',data:{labels:pL,datasets:[{data:pL.map(k=>Math.round(byPole[k])),backgroundColor:pL.map((_,i)=>PAL[i%PAL.length]),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fCA(c.raw)}}},cutout:'60%'}});
-  // Drill pôle
-  document.getElementById('ch-pm-pole').onclick=evt=>{const chart=CH['pm-pole'];if(!chart)return;const pts=chart.getElementsAtEventForMode(evt,'nearest',{intersect:true},false);if(!pts.length)return;const label=pL[pts[0].index];openDrill(label,'Perdues ce mois — pôle',perduesMois.filter(r=>getPole(r)===label),'r');};
-  /* Bar client top 10 */
-  const byClient=groupSum(perduesMois,r=>gf(r,'Société - Nom','Société - Nom')||'Inconnu',getCA);
-  const clientL=sortedE(byClient).slice(0,10).map(e=>e[0]);
-  const clientH=Math.max(clientL.length*36+60,180);
-  document.getElementById('wrap-pm-client').style.height=clientH+'px';
-  dch('pm-client');
-  CH['pm-client']=new Chart(document.getElementById('ch-pm-client'),{type:'bar',data:{labels:clientL,datasets:[{data:clientL.map(k=>Math.round(byClient[k])),backgroundColor:clientL.map((_,i)=>PAL[i%PAL.length]),borderRadius:2,borderWidth:0}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fCA(c.raw)+' — cliquez'}}},scales:{x:{...SC.x,ticks:{...SC.x.ticks,callback:v=>fCA(v)}},y:{...SC.y,grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const client=clientL[els[0].index];openDrill(client,'Perdues ce mois — client',perduesMois.filter(r=>(gf(r,'Société - Nom','Société - Nom')||'Inconnu')===client),'r');}}}});
-  /* Évolution tous mois — courbe nb + CA */
-  const evoByMonth={};
-  months.forEach(m=>{evoByMonth[m]={nb:0,ca:0};});
-  perduesAll.forEach(r=>{const m=monthKey(getCloture(r));if(m&&evoByMonth[m]){evoByMonth[m].nb++;evoByMonth[m].ca+=getCA(r);}});
-  const evoLabels=months.map(m=>{const[y,mo]=m.split('-');return new Date(+y,+mo-1,1).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});});
-  const isCur=months.map(m=>m===curMK);
-  dch('pm-evo');
-  document.getElementById('leg-pm-evo').innerHTML=`<span class="leg-i"><span class="leg-s" style="background:#FF4C41"></span>Nb perdues</span><span class="leg-i"><span class="leg-s" style="background:${BY}"></span>CA perdu (k€)</span>`;
-  CH['pm-evo']=new Chart(document.getElementById('ch-pm-evo'),{type:'line',data:{labels:evoLabels,datasets:[
-    {label:'Nb perdues',data:months.map(m=>evoByMonth[m].nb),borderColor:'#FF4C41',backgroundColor:'rgba(255,76,65,0.07)',borderWidth:2.5,fill:true,tension:0.3,pointRadius:months.map((m,i)=>m===curMK?7:4),pointBackgroundColor:months.map(m=>m===curMK?BY:'#FF4C41'),pointHoverRadius:8},
-    {label:'CA perdu (k€)',data:months.map(m=>Math.round(evoByMonth[m].ca/1000)),borderColor:BY,backgroundColor:'rgba(255,200,0,0.06)',borderWidth:2,fill:false,tension:0.3,pointRadius:4,pointBackgroundColor:BY,yAxisID:'y2'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:([c])=>evoLabels[c.dataIndex],label:c=>c.dataset.label+': '+c.raw+(c.datasetIndex===0?'':' k€')}}},scales:{x:{...SC.x},y:{...SC.y,min:0,title:{display:true,text:'Nb perdues',font:{size:11},color:'#6E6E6E'}},y2:{...SC.y,position:'right',title:{display:true,text:'CA perdu (k€)',font:{size:11},color:'#6E6E6E'},grid:{display:false}}},interaction:{mode:'index',intersect:false}}});
-  /* Table */
-  const tb=document.getElementById('tb-pm');tb.innerHTML='';
-  document.getElementById('tb-pm-empty').style.display=perduesMois.length?'none':'block';
-  [...perduesMois].sort((a,b)=>getCA(b)-getCA(a)).forEach(r=>{const df=getCloture(r);const motif=gf(r,'Étape - motif','Étape - motif')||'—';const etat=getEtat(r);const dc2=getCreation(r);const dur=dc2&&df?Math.round((df-dc2)/86400000):'—';const tr=document.createElement('tr');tr.innerHTML=`<td title="${gf(r,'Titre')}">${gf(r,'Titre')||'—'}</td><td>${gf(r,'Société - Nom','Société - Nom')||'—'}</td><td>${getPole(r)}</td><td style="font-weight:700;color:#6D0718">${fCA(getCA(r))}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${df?df.toLocaleDateString('fr-FR'):'—'}</td><td><span class="bd ${etat==='Abandonné'?'bd-orange':'bd-red'}" style="font-size:9px">${motif.length>12?motif.substring(0,12)+'…':motif}</span></td>`;tb.appendChild(tr);});
-}
-document.getElementById('pm-month-sel').addEventListener('change',e=>{if(PM_ROWS.length)buildPerduesMois(PM_ROWS,e.target.value);});
 /* monthly charts built lazily on first tab activation */
 if(history.length>0)buildEvolution([]);
 </script>
