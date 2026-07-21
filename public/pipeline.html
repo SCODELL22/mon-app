@@ -651,7 +651,10 @@ const pn=v=>{if(!v)return 0;const x=parseFloat(v.replace(',','.').replace(/[^\d.
 const fCA=x=>{if(x>=1000000)return(x/1000000).toFixed(1)+' M€';if(x>=1000)return Math.round(x/1000)+' k€';return Math.round(x)+' €';};
 function pd(s){if(!s)return null;const m=s.match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return new Date(+m[3],m[2]-1,+m[1]);const d=new Date(s);return isNaN(d)?null:d;}
 function wlabel(dt){if(!dt)return'S?';const d=new Date(dt);d.setDate(d.getDate()-d.getDay()+1);const j=new Date(d.getFullYear(),0,1);return'S'+Math.ceil(((d-j)/86400000+j.getDay()+1)/7);}
-function gf(r,...k){for(const x of k){if(r[x]!==undefined&&r[x]!=='')return r[x];}return'';}
+/* Échappement HTML : toute valeur texte issue d'un import (CSV/XLSX/JSON) ou saisie manuelle
+   passe par ici avant d'être injectée via innerHTML, pour empêcher une XSS stockée. */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function gf(r,...k){for(const x of k){if(r[x]!==undefined&&r[x]!=='')return esc(r[x]);}return'';}
 function dch(id){if(CH[id]){CH[id].destroy();delete CH[id];}}
 const SC={x:{grid:{color:'rgba(0,61,220,0.04)'},ticks:{font:{size:11,family:'Open Sans'},color:'#6E6E6E'},border:{display:false}},y:{grid:{color:'rgba(0,61,220,0.04)'},ticks:{font:{size:11,family:'Open Sans'},color:'#6E6E6E'},border:{display:false}}};
 const getEtat=r=>gf(r,'État','État');
@@ -1339,20 +1342,20 @@ function buildMargeDashboards(){
   const byP={};rows.forEach(r=>{const k=r.practice||'(non renseigné)';if(!byP[k])byP[k]={ca:0,marge:0,n:0};byP[k].ca+=r.ca;byP[k].marge+=r.marge;byP[k].n++;});
   const practices=Object.keys(byP).map(k=>({k,...byP[k]})).sort((a,b)=>b.ca-a.ca);
   const tbP=document.getElementById('tb-mg-practice');
-  if(tbP)tbP.innerHTML=practices.length?practices.map(p=>`<tr><td>${p.k} <span style="font-size:10px;color:var(--gm)">(${p.n})</span></td><td style="font-weight:700;color:var(--klein)">${fCA(p.ca)}</td><td>${fCA(p.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(p.marge,p.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  if(tbP)tbP.innerHTML=practices.length?practices.map(p=>`<tr><td>${esc(p.k)} <span style="font-size:10px;color:var(--gm)">(${p.n})</span></td><td style="font-weight:700;color:var(--klein)">${fCA(p.ca)}</td><td>${fCA(p.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(p.marge,p.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
   const byT={};rows.forEach(r=>{const k=r.type||'(non renseigné)';if(!byT[k])byT[k]={ca:0,marge:0};byT[k].ca+=r.ca;byT[k].marge+=r.marge;});
   const types=Object.keys(byT).map(k=>({k,...byT[k]})).sort((a,b)=>b.ca-a.ca);
   const tbT=document.getElementById('tb-mg-type');
-  if(tbT)tbT.innerHTML=types.length?types.map(t=>`<tr><td>${t.k}</td><td style="font-weight:700;color:var(--klein)">${fCA(t.ca)}</td><td>${fCA(t.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(t.marge,t.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  if(tbT)tbT.innerHTML=types.length?types.map(t=>`<tr><td>${esc(t.k)}</td><td style="font-weight:700;color:var(--klein)">${fCA(t.ca)}</td><td>${fCA(t.marge)} <span style="font-size:10px;color:var(--gm)">${mgPct(t.marge,t.ca).toFixed(1).replace('.',',')}%</span></td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
   const byC={};rows.forEach(r=>{if(!byC[r.client])byC[r.client]={ca:0,marge:0,byComm:{}};const c=byC[r.client];c.ca+=r.ca;c.marge+=r.marge;c.byComm[r.commercial]=(c.byComm[r.commercial]||0)+r.ca;});
   const clients=Object.keys(byC).map(client=>{const v=byC[client];const dom=Object.entries(v.byComm).sort((a,b)=>b[1]-a[1])[0];return {client,commercial:dom?dom[0]:'',ca:v.ca,marge:v.marge};}).sort((a,b)=>b.ca-a.ca).slice(0,10);
   const tbC=document.getElementById('tb-mg-top');
-  if(tbC)tbC.innerHTML=clients.length?clients.map(c=>`<tr><td style="font-weight:600">${c.client}</td><td style="color:var(--gd)">${c.commercial}</td><td style="font-weight:700;color:var(--klein)">${fCA(c.ca)}</td><td>${fCA(c.marge)}</td><td>${mgPct(c.marge,c.ca).toFixed(1).replace('.',',')}%</td></tr>`).join(''):'<tr><td colspan="5" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
+  if(tbC)tbC.innerHTML=clients.length?clients.map(c=>`<tr><td style="font-weight:600">${esc(c.client)}</td><td style="color:var(--gd)">${esc(c.commercial)}</td><td style="font-weight:700;color:var(--klein)">${fCA(c.ca)}</td><td>${fCA(c.marge)}</td><td>${mgPct(c.marge,c.ca).toFixed(1).replace('.',',')}%</td></tr>`).join(''):'<tr><td colspan="5" style="color:var(--gm)">Importe le Suivi de marge pour voir cette vue.</td></tr>';
   const neg=rows.filter(r=>r.marge<0).sort((a,b)=>a.marge-b.marge);
   const card=document.getElementById('mg-negative-card'),tbN=document.getElementById('tb-mg-neg'),cnt=document.getElementById('mg-neg-count');
   if(card)card.style.display=neg.length?'block':'none';
   if(cnt)cnt.textContent=neg.length?('— '+neg.length+' projet(s), '+fCA(neg.reduce((s,r)=>s+r.marge,0))+' cumulés'):'';
-  if(tbN)tbN.innerHTML=neg.map(r=>`<tr><td style="font-weight:600">${r.client}</td><td style="color:var(--gd)" title="${r.projet.replace(/"/g,'&quot;')}">${r.projet}</td><td style="color:var(--gd)">${r.commercial}</td><td>${fCA(r.ca)}</td><td>${fCA(r.couts)}</td><td style="font-weight:700;color:var(--red)">${fCA(r.marge)}</td></tr>`).join('');
+  if(tbN)tbN.innerHTML=neg.map(r=>`<tr><td style="font-weight:600">${esc(r.client)}</td><td style="color:var(--gd)" title="${esc(r.projet)}">${esc(r.projet)}</td><td style="color:var(--gd)">${esc(r.commercial)}</td><td>${fCA(r.ca)}</td><td>${fCA(r.couts)}</td><td style="font-weight:700;color:var(--red)">${fCA(r.marge)}</td></tr>`).join('');
 }
 /* ══ TAB RECRUTEMENT ══════════════════════════════════════
  * Prévisionnel : budget Paris FY26 (postes à pourvoir + fins de contrat connues), figé en seed
@@ -1567,7 +1570,7 @@ function buildRecrutement(){
   const tbP=document.getElementById('tb-rc-practice');
   if(tbP)tbP.innerHTML=byPractice.map(r=>{
     const isConfirm=r.p.indexOf('À confirmer')===0;
-    const nameHtml=isConfirm?`<span style="color:#FF8A00" title="${r.p.replace(/"/g,'&quot;')}">${r.p}</span>`:(r.p||'(non renseigné)');
+    const nameHtml=isConfirm?`<span style="color:#FF8A00" title="${esc(r.p)}">${esc(r.p)}</span>`:esc(r.p||'(non renseigné)');
     return `<tr><td>${nameHtml}</td><td style="color:var(--gd)">${r.pA}</td><td style="font-weight:700;color:var(--klein)">${r.rA}</td><td>${rcEcart(r.pA,r.rA)}</td><td style="color:var(--gd)">${r.pD}</td><td style="font-weight:700;color:#6D0718">${r.rD}</td></tr>`;
   }).join('')||'<tr><td colspan="6" style="color:var(--gm)">Aucune donnée.</td></tr>';
   const horsA=horsPerimetre.filter(e=>e.type==='arrivee').length;
@@ -1578,8 +1581,8 @@ function buildRecrutement(){
   S('rc-arriv-count','— '+upcoming.length+' personne(s)');
   const tbA=document.getElementById('tb-rc-arrivent');
   if(tbA)tbA.innerHTML=upcoming.length?upcoming.map(e=>{
-    const pr=e.practice.indexOf('À confirmer')===0?'<span style="color:#FF8A00">à confirmer</span>':e.practice;
-    return `<tr><td style="font-weight:600">${rcDateFr(e.date)}</td><td>${e.nom}</td><td style="color:var(--gd)" title="${(e.poste||'').replace(/"/g,'&quot;')}">${e.poste||'—'}</td><td>${pr}</td><td style="color:var(--gd)">${e.contrat||'—'}</td><td style="font-size:11px;color:var(--gm)">${rcSourceLabel(e.source)}</td></tr>`;
+    const pr=e.practice.indexOf('À confirmer')===0?'<span style="color:#FF8A00">à confirmer</span>':esc(e.practice);
+    return `<tr><td style="font-weight:600">${rcDateFr(e.date)}</td><td>${esc(e.nom)}</td><td style="color:var(--gd)" title="${esc(e.poste||'')}">${esc(e.poste||'—')}</td><td>${pr}</td><td style="color:var(--gd)">${esc(e.contrat||'—')}</td><td style="font-size:11px;color:var(--gm)">${rcSourceLabel(e.source)}</td></tr>`;
   }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--gm)">Aucune arrivée confirmée à venir.</td></tr>';
   const journal=[...eventsAll].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const jw=document.getElementById('rc-journal-wrap');if(jw)jw.style.display=journal.length?'block':'none';
@@ -1587,7 +1590,7 @@ function buildRecrutement(){
   const tbJ=document.getElementById('tb-rc-journal');
   if(tbJ)tbJ.innerHTML=journal.map(e=>{
     const opacity=e.statut==='annulee'?'opacity:.5;':'';
-    return `<tr style="${opacity}"><td style="color:${e.type==='arrivee'?'#004C4C':'#6D0718'}">${e.type==='arrivee'?'Arrivée':'Départ'}</td><td>${rcDateFr(e.date)}</td><td>${e.nom}</td><td style="color:var(--gd)">${e.poste||'—'}</td><td style="color:var(--gd)" title="${(e.practice||'').replace(/"/g,'&quot;')}">${e.practice}</td><td>${e.statut==='annulee'?'Annulée':'Confirmée'}</td><td style="font-size:11px;color:var(--gm)">${rcSourceLabel(e.source)}</td></tr>`;
+    return `<tr style="${opacity}"><td style="color:${e.type==='arrivee'?'#004C4C':'#6D0718'}">${e.type==='arrivee'?'Arrivée':'Départ'}</td><td>${rcDateFr(e.date)}</td><td>${esc(e.nom)}</td><td style="color:var(--gd)">${esc(e.poste||'—')}</td><td style="color:var(--gd)" title="${esc(e.practice||'')}">${esc(e.practice)}</td><td>${e.statut==='annulee'?'Annulée':'Confirmée'}</td><td style="font-size:11px;color:var(--gm)">${rcSourceLabel(e.source)}</td></tr>`;
   }).join('');
 }
 function addRecrutEvent(){
@@ -1689,15 +1692,15 @@ function buildPerformance(){
   comms.forEach(d=>{
     const st=pfState(d.av,pace*100),col=st[0],lbl=st[1];
     const tr=document.createElement('tr');tr.style.cursor='pointer';
-    tr.innerHTML=`<td style="font-weight:600"><span style="display:inline-block;width:0;height:0;border-left:5px solid var(--gm);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;vertical-align:middle;transform:rotate(${PF_OPEN===d.c?90:0}deg)"></span>${d.c}</td>`+
-      `<td><input type="number" min="0" step="10000" value="${d.obj||''}" data-comm="${d.c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="onQuotaChange(this)" placeholder="—" style="width:108px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
+    tr.innerHTML=`<td style="font-weight:600"><span style="display:inline-block;width:0;height:0;border-left:5px solid var(--gm);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;vertical-align:middle;transform:rotate(${PF_OPEN===d.c?90:0}deg)"></span>${esc(d.c)}</td>`+
+      `<td><input type="number" min="0" step="10000" value="${d.obj||''}" data-comm="${esc(d.c)}" onclick="event.stopPropagation()" onchange="onQuotaChange(this)" placeholder="—" style="width:108px;padding:4px 6px;border:1px solid var(--gl);border-radius:2px;font-family:'Open Sans';font-size:12px;text-align:right;"></td>`+
       `<td style="font-weight:700;color:#004C4C">${fCA(d.ca)}</td>`+
       `<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:var(--gl);border-radius:4px;overflow:hidden;position:relative"><div style="height:100%;width:${Math.min(100,d.av)}%;background:${col}"></div><div style="position:absolute;top:-1px;height:9px;width:2px;background:var(--deep);left:${Math.min(100,pace*100)}%"></div></div><span style="font-size:11px;font-weight:700;color:${col}">${Math.round(d.av)}%</span></div><div style="font-size:10px;color:var(--gm);margin-top:2px">${lbl}</div></td>`+
       `<td>${fCA(d.marge)} <span style="font-size:10px;color:var(--gm)">${(d.mpct*100).toFixed(1).replace('.',',')}%</span></td>`+
       `<td>${pfEcart(d.ecart)}</td>`;
     tr.addEventListener('click',()=>{PF_OPEN=PF_OPEN===d.c?null:d.c;buildPerformance();});
     tb.appendChild(tr);
-    if(PF_OPEN===d.c){d.clients.forEach(cl=>{const cr=document.createElement('tr');cr.style.background='#FAFBFF';cr.innerHTML=`<td style="padding-left:28px;color:var(--gd)">${cl.client}</td><td></td><td style="color:var(--deep)">${fCA(cl.ca)}</td><td><div style="height:5px;background:var(--gl);border-radius:3px;overflow:hidden"><div style="height:100%;width:${d.ca>0?Math.round(cl.ca/d.ca*100):0}%;background:var(--klein)"></div></div></td><td style="color:var(--gd)">${fCA(cl.marge)} <span style="font-size:10px;color:var(--gm)">${cl.ca>0?Math.round(cl.marge/cl.ca*100):0}%</span></td><td></td>`;tb.appendChild(cr);});}
+    if(PF_OPEN===d.c){d.clients.forEach(cl=>{const cr=document.createElement('tr');cr.style.background='#FAFBFF';cr.innerHTML=`<td style="padding-left:28px;color:var(--gd)">${esc(cl.client)}</td><td></td><td style="color:var(--deep)">${fCA(cl.ca)}</td><td><div style="height:5px;background:var(--gl);border-radius:3px;overflow:hidden"><div style="height:100%;width:${d.ca>0?Math.round(cl.ca/d.ca*100):0}%;background:var(--klein)"></div></div></td><td style="color:var(--gd)">${fCA(cl.marge)} <span style="font-size:10px;color:var(--gm)">${cl.ca>0?Math.round(cl.marge/cl.ca*100):0}%</span></td><td></td>`;tb.appendChild(cr);});}
   });
   const tf=document.getElementById('tf-perf');let naR='';
   if(na&&na.ca!==0)naR=`<tr style="color:var(--gm)"><td style="font-style:italic">Non attribué</td><td></td><td>${fCA(na.ca)}</td><td></td><td>${fCA(na.marge)}</td><td></td></tr>`;
