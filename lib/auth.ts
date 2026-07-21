@@ -170,6 +170,23 @@ export function isAllowedEmailDomain(email: string): boolean {
   return email.trim().toLowerCase().endsWith(`@${domain}`);
 }
 
+/**
+ * Restreint l'inscription à une liste précise d'adresses (ALLOWED_EMAILS, séparées par des
+ * virgules) plutôt qu'à tout un domaine. Si ALLOWED_EMAILS n'est pas configuré, on retombe sur
+ * la restriction par domaine (isAllowedEmailDomain) pour ne rien casser tant que la variable
+ * n'est pas définie côté hébergeur — mais la restriction fine ne prend effet qu'une fois
+ * ALLOWED_EMAILS renseigné.
+ */
+export function isAllowedEmail(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  const list = (process.env.ALLOWED_EMAILS || '')
+    .split(',')
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length > 0) return list.includes(e);
+  return isAllowedEmailDomain(email);
+}
+
 // ---------- Réinitialisation de mot de passe (lien à usage unique, sans état côté serveur) ----------
 // Le jeton contient une empreinte du hash de mot de passe ACTUEL au moment de l'émission. Dès que
 // le mot de passe change (via ce flux ou un autre), l'empreinte stockée en base change aussi, donc

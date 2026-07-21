@@ -8,7 +8,7 @@ import {
   recordFailedAttempt,
   clientIp,
   isValidEmail,
-  isAllowedEmailDomain,
+  isAllowedEmail,
   redirectTo,
 } from '@/lib/auth';
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   if (!isValidEmail(email)) {
     return redirectTo('/signup?error=email');
   }
-  if (!isAllowedEmailDomain(email)) {
+  if (!isAllowedEmail(email)) {
     recordFailedAttempt(`signup:${ip}`);
     return redirectTo('/signup?error=domain');
   }
