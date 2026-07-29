@@ -10,3 +10,46 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
+
+/* ------------------------------------------------------------------ Module 1:1
+   Le module /1-1 est stylé en objets inline (convention héritée de app/login/page.tsx).
+   Les quelques règles ci-dessous sont ici parce qu'elles ne peuvent PAS s'exprimer en style
+   inline : media queries et position collante. */
+
+/* Saisie côte à côte : transcription à gauche, trame à droite. */
+.o3-cote-a-cote {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* La transcription reste visible pendant qu'on fait défiler la trame — c'est tout l'intérêt
+   du dispositif : on remplit en lisant, sans aller-retour. */
+.o3-collant {
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+}
+
+/* Sous 1100 px, la lecture en deux colonnes devient pénible : on empile, et le panneau
+   transcription cesse d'être collant (il occuperait tout l'écran). */
+@media (max-width: 1100px) {
+  .o3-cote-a-cote {
+    grid-template-columns: 1fr;
+  }
+  .o3-collant {
+    position: static;
+    max-height: 460px;
+  }
+}
+
+/* Verbatim : police à chasse fixe, lignes préservées, taille réduite pour en voir davantage. */
+.o3-verbatim {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #000f41;
+}

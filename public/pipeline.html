@@ -206,6 +206,10 @@ select{appearance:auto;}
     <div class="tb-right">
       <span class="wb" id="data-fresh"></span>
       <span class="wb" id="week-badge"></span>
+      <!-- Suivi des 1:1 : module distinct, rendu côté serveur (app/1-1). Accès restreint aux
+           managers et aux commerciaux concernés — le lien est visible de tous, la page refuse
+           l'accès aux autres. -->
+      <a class="btn-g" href="/1-1" style="text-decoration:none;line-height:1.6;">Suivi 1:1</a>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
       <button class="btn-g" onclick="logout()">Déconnexion</button>
     </div>

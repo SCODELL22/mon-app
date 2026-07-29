@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...sauf le modèle, qui ne contient aucun secret et documente les variables attendues.
+# Sans cette exception, un clone du dépôt n'a aucune trace de la configuration à fournir.
+!.env.example
 
 # vercel
 .vercel
