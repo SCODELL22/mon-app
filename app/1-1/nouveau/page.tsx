@@ -313,20 +313,38 @@ export default async function Page({
               {/* Second bouton de soumission du MÊME formulaire, redirigé par `formaction` vers
                   la route d'extraction. Tout est donc enregistré avant d'appeler le modèle : la
                   saisie du manager ne peut pas être perdue si l'extraction échoue. */}
-              {extractionPossible && (
-                <div style={{ marginTop: 12 }}>
-                  <button
-                    type="submit"
-                    formAction="/api/one-on-one/extraction"
-                    style={{ ...S.btnGhost, borderColor: C.klein, color: C.klein }}
-                  >
-                    Enregistrer et pré-remplir la trame
+              {extractionPossible ? (
+                <div style={{ marginTop: 14 }}>
+                  <button type="submit" formAction="/api/one-on-one/extraction" style={S.btn}>
+                    Analyser et remplir la trame
                   </button>
                   <p style={{ fontSize: 11, color: C.gd, marginTop: 8, lineHeight: 1.5 }}>
-                    Complète uniquement les rubriques laissées vides, à partir de la transcription.
-                    Ne touche jamais à la zone privée. L’entretien reste en brouillon :{' '}
+                    Répartit le contenu de la transcription dans les rubriques restées vides et
+                    propose les actions évoquées. Ne touche jamais aux rubriques déjà rédigées ni à
+                    la zone privée. L’entretien reste en brouillon :{' '}
                     <strong>relis avant de partager</strong>.
                   </p>
+                </div>
+              ) : (
+                /* Ne PAS se contenter de masquer le bouton : sans ce message, l'encart de
+                   transcription paraît inutile et rien n'indique ce qu'il manque. */
+                <div
+                  style={{
+                    marginTop: 14,
+                    background: '#EEF2FF',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    color: C.deep,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <strong>Analyse automatique désactivée.</strong> Cet environnement n’a pas
+                  d’accès au modèle : la transcription est bien enregistrée, mais elle ne peut pas
+                  être répartie dans la trame. Pour l’activer, renseigner{' '}
+                  <code>ANTHROPIC_API_KEY</code> (ou la configuration Vertex AI) dans les variables
+                  d’environnement, puis redémarrer l’application. Voir <code>.env.example</code>.
                 </div>
               )}
             </Card>
