@@ -1216,20 +1216,58 @@ const FACT_DEFAULT=[["BPIFRANCE",2407096,632710],["CRIT SAS",819477,144374],["JC
 const FACT_PERIODE_DEFAULT='2026-05';
 function getFact(){try{const s=localStorage.getItem('ippon_fact');if(s){const o=JSON.parse(s);if(o&&o.rows&&o.rows.length)return o;}}catch(e){}return {periode:FACT_PERIODE_DEFAULT,rows:FACT_DEFAULT.map(a=>({client:a[0],ca:a[1],marge:a[2]}))};}
 function commOf(c){return CLIENT_COMM[(c||'').trim()]||'Non attribué';}
+/**
+ * Import CSV « Facturation » / « Suivi de marge ». Accepte :
+ *  - le CSV simple Client;CA;Marge (en-tête en ligne 1) ;
+ *  - l'export brut du Suivi de marge (Google Sheets « Feuille 1 ») : lignes Agence/Période/TOTAL
+ *    avant la vraie ligne de colonnes, une ligne par projet, montants « 1 264,00€ ».
+ * La ligne de colonnes est cherchée dans les 30 premières lignes ; les lignes TOTAL sont ignorées ;
+ * les projets sont sommés par client. Retourne {rows, periode} ou null.
+ */
+const fEur=x=>(Math.round(x*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+function factSepOf(line){const sc=(line.match(/;/g)||[]).length,cc=(line.match(/,/g)||[]).length;return sc>cc?';':',';}
 function parseFactCsv(text){
-  const lines=text.replace(/^﻿/,'').split('\n').filter(l=>l.trim());
-  if(lines.length<2)return null;
-  const sep=lines[0].includes(';')?';':',';
-  const hdr=lines[0].split(sep).map(h=>h.replace(/^"|"$/g,'').trim().toLowerCase());
-  const iCli=hdr.findIndex(h=>/client|soci|compte/.test(h));
+  const lines=text.replace(/^﻿/,'').split(/\r?\n/).filter(l=>l.replace(/[,;\s"]/g,''));
+  const isCli=h=>/client|soci|compte/.test(h);
+  let hi=-1,sep=',',hdr=null;
+  for(let i=0;i<Math.min(lines.length,30);i++){
+    const s=factSepOf(lines[i]);
+    const h=smartSplit(lines[i],s).map(normHdr);
+    if(h.length>=2&&h.some(isCli)&&h.some(x=>x==='ca'||/marge|chiffre/.test(x))){hi=i;sep=s;hdr=h;break;}
+  }
+  if(hi<0)return null;
+  let periode=null;
+  for(let i=0;i<hi;i++){
+    const v=smartSplit(lines[i],factSepOf(lines[i])).map(x=>x.trim());
+    if(normHdr(v[0])==='periode'){const m=(v[1]||'').match(/^(\d{1,2})\/(\d{4})$/);if(m)periode=m[2]+'-'+m[1].padStart(2,'0');}
+  }
+  const iCli=hdr.findIndex(isCli);
   let iCa=hdr.findIndex(h=>h==='ca');if(iCa<0)iCa=hdr.findIndex(h=>/chiffre|ca ht|ca facture|ca\b/.test(h));
-  const iMa=hdr.findIndex(h=>/marge/.test(h));
-  if(iCli<0)return null;
-  const m={};
-  for(let i=1;i<lines.length;i++){const v=smartSplit(lines[i],sep).map(x=>x.replace(/^"|"$/g,'').trim());const cli=(v[iCli]||'').trim();if(!cli)continue;const ca=iCa>=0?pn(v[iCa]):0;const ma=iMa>=0?pn(v[iMa]):0;if(!m[cli])m[cli]={client:cli,ca:0,marge:0};m[cli].ca+=ca;m[cli].marge+=ma;}
-  const out=Object.values(m);return out.length?out:null;
+  const iMa=hdr.findIndex(h=>h==='marge');const iMa2=iMa>=0?iMa:hdr.findIndex(h=>/marge/.test(h)&&!/%/.test(h));
+  const iCom=hdr.findIndex(h=>/^(commercial|responsable)/.test(h));
+  const iPrj=hdr.findIndex(h=>h==='projet'),iType=hdr.findIndex(h=>h==='type'),iCout=hdr.findIndex(h=>/^couts?$/.test(h));
+  const m={},detail=[];
+  for(let i=hi+1;i<lines.length;i++){
+    const v=smartSplit(lines[i],sep).map(x=>x.trim());
+    const cli=(v[iCli]||'').trim();
+    if(!cli||/^(sous )?(total|totaux)( general| agence)?$/.test(normHdr(cli)))continue; // ligne TOTAL, pas TOTALENERGIES
+    const ca=iCa>=0?pn(v[iCa]):0,ma=iMa2>=0?pn(v[iMa2]):0;
+    if(!m[cli])m[cli]={client:cli,ca:0,marge:0,byComm:{}};
+    m[cli].ca+=ca;m[cli].marge+=ma;
+    const comm=iCom>=0?(v[iCom]||'').trim():'';
+    if(comm)m[cli].byComm[comm]=(m[cli].byComm[comm]||0)+ca;
+    if(iPrj>=0&&v[iPrj])detail.push({client:cli,projet:v[iPrj],commercial:comm||commOf(cli),practice:'(non renseigné)',
+      type:iType>=0?(v[iType]||''):'',statut:'',ca,couts:iCout>=0?pn(v[iCout]):0,marge:ma});
+  }
+  const rows=Object.values(m).map(o=>{
+    const r={client:o.client,ca:o.ca,marge:o.marge};
+    const cs=Object.keys(o.byComm);
+    if(cs.length)r.commercial=cs.reduce((a,b)=>o.byComm[b]>o.byComm[a]?b:a);
+    return r;
+  });
+  return rows.length?{rows,detail,periode}:null;
 }
-function importFacturation(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const rows=parseFactCsv(ev.target.result);if(!rows){alert('Fichier illisible. Colonnes attendues : Client, CA, Marge.');return;}localStorage.setItem('ippon_fact',JSON.stringify({periode:null,rows}));buildPerformance();if(typeof buildMargeDashboards==='function')buildMargeDashboards();alert(rows.length+' clients importés.');};r.readAsText(f);el.value='';}
+function importFacturation(el){const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const res=parseFactCsv(ev.target.result);if(!res){alert('Fichier illisible : aucune ligne de colonnes Client / CA / Marge trouvée dans les 30 premières lignes.');return;}const rows=res.rows;localStorage.setItem('ippon_fact',JSON.stringify({periode:res.periode,rows}));if(res.detail.length)localStorage.setItem('ippon_marge_detail',JSON.stringify({periode:res.periode,rows:res.detail}));buildPerformance();if(typeof buildMargeDashboards==='function')buildMargeDashboards();const tot=rows.reduce((s,x)=>s+x.ca,0),totM=rows.reduce((s,x)=>s+x.marge,0);alert(rows.length+' clients importés'+(res.periode?' ('+pfPeriode(res.periode)+')':'')+'\nCA total : '+fEur(tot)+'\nMarge totale : '+fEur(totM)+'\n\nCompare avec la ligne TOTAL du fichier.');};r.readAsText(f);el.value='';}
 /* ══ IMPORT XLSX BRUT « SUIVI DE MARGE » ═════════════════════════ */
 function normHdr(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9%]+/g,' ').trim();}
 function numXl(v){if(typeof v==='number')return isNaN(v)?0:v;if(v==null||v==='')return 0;const n=Number(String(v).replace(/[\s€]/g,'').replace(',','.'));return isNaN(n)?0:n;}
