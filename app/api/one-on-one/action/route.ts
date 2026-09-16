@@ -1,5 +1,5 @@
 // Mise à jour rapide d'une action depuis la vue transverse (clôturer, reporter l'échéance).
-import { acces, peutEcrire, refus } from '@/lib/access';
+import { acces, gere, peutEcrire, refus } from '@/lib/access';
 import { redirectTo } from '@/lib/auth';
 import { getAction, upsertAction } from '@/lib/one-on-one-store';
 import type { ActionStatut } from '@/lib/one-on-one';
@@ -15,10 +15,15 @@ export async function POST(req: Request) {
 
   const form = await req.formData();
   const id = String(form.get('id') ?? '').trim();
-  const retour = String(form.get('retour') ?? '/1-1/actions');
+  const retourBrut = String(form.get('retour') ?? '/1-1/actions');
+  // Chemin interne uniquement : « //domaine » serait suivi par le navigateur vers un autre site.
+  const retour =
+    retourBrut.startsWith('/') && !retourBrut.startsWith('//') ? retourBrut : '/1-1/actions';
 
   const action = await getAction(id);
-  if (!action) return redirectTo(retour.startsWith('/') ? retour : '/1-1/actions');
+  if (!action) return redirectTo(retour);
+  // Un manager ne touche qu'aux actions de ses managés, même en forgeant l'identifiant.
+  if (!gere(a, action.commercialId)) return refus('forbidden');
 
   const statutBrut = String(form.get('statut') ?? '');
   const echeanceBrute = String(form.get('echeance') ?? '').trim();
@@ -32,5 +37,5 @@ export async function POST(req: Request) {
   });
 
   // Location relatif imposé (cf. commentaire de redirectTo dans lib/auth.ts).
-  return redirectTo(retour.startsWith('/') ? retour : '/1-1/actions');
+  return redirectTo(retour);
 }

@@ -6,7 +6,14 @@
 // Le filtrage est fait côté serveur par filtrerPourLecteur() : le contenu privé n'est pas
 // simplement masqué en CSS, il n'est jamais envoyé au navigateur.
 import { notFound } from 'next/navigation';
-import { acces, filtrerPourLecteur, peutAccederAuModule, peutLireEntretien } from '@/lib/access';
+import {
+  acces,
+  filtrerActionsPourLecteur,
+  filtrerPourLecteur,
+  gere,
+  peutAccederAuModule,
+  peutLireEntretien,
+} from '@/lib/access';
 import { getCommercial, getOneOnOne, listActions, listOneOnOnes } from '@/lib/one-on-one-store';
 import { ACTION_STATUT_META, aujourdHui, isActionOuverte, isEnRetard } from '@/lib/one-on-one';
 import { dateFr, euros } from '@/lib/format';
@@ -64,6 +71,8 @@ export default async function Page({
   // Même en ayant vérifié le droit de lecture, on repasse par le filtre : c'est lui qui retire
   // la zone privée. Ne pas court-circuiter cette étape.
   const [entretien] = filtrerPourLecteur([brut], a);
+  // Droits de gestion sur la fiche concernée (et non rôle global) : cf. lib/access.ts.
+  const gestion = gere(a, entretien.commercialId);
 
   const today = aujourdHui();
   const [commercial, actions, tousSes1a1] = await Promise.all([
@@ -73,16 +82,21 @@ export default async function Page({
   ]);
 
   // Entretien précédent : permet d'afficher le rappel « ce qui avait été décidé la fois d'avant ».
+  // On ne cherche le précédent QUE parmi les entretiens lisibles : sinon un commercial verrait
+  // les actions d'un entretien antérieur encore en brouillon.
   const precedent = tousSes1a1
+    .filter((e) => peutLireEntretien(a, e))
     .filter((e) => e.date < entretien.date || (e.date === entretien.date && e.createdAt < entretien.createdAt))
     .sort((x, y) => y.date.localeCompare(x.date))[0];
-  const actionsPrecedentes = precedent ? await listActions({ oneOnOneId: precedent.id }) : [];
+  const actionsPrecedentes = precedent
+    ? filtrerActionsPourLecteur(await listActions({ oneOnOneId: precedent.id }), [precedent], a)
+    : [];
 
   const c = entretien.chiffres;
   const aDesChiffres = c.caSigne || c.pipelinePondere || c.nbRdv || c.nbNouveauxComptes;
 
   return (
-    <Shell titre="Compte rendu" estManager={a.estManager}>
+    <Shell titre="Compte rendu" estManager={a.estManager} estAdmin={a.estAdmin}>
       <header
         style={{
           marginBottom: 18,
@@ -96,7 +110,7 @@ export default async function Page({
         <div>
           <h1 style={S.h1}>
             Entretien du {dateFr(entretien.date)}{' '}
-            {a.estManager &&
+            {gestion &&
               (entretien.statut === 'PARTAGE' ? (
                 <Badge ton="green">partagé</Badge>
               ) : (
@@ -111,10 +125,10 @@ export default async function Page({
             ) : (
               'Commercial inconnu'
             )}
-            {a.estManager && entretien.auteurEmail ? ` — mené par ${entretien.auteurEmail}` : ''}
+            {gestion && entretien.auteurEmail ? ` — mené par ${entretien.auteurEmail}` : ''}
           </p>
         </div>
-        {a.estManager && (
+        {gestion && (
           <a href={`/1-1/nouveau?id=${entretien.id}`} style={S.btn}>
             Modifier
           </a>
@@ -130,7 +144,7 @@ export default async function Page({
       {retire && <Message ton="info">Partage retiré. Le compte rendu est repassé en brouillon.</Message>}
 
       {/* Bandeau de partage : le seul endroit d'où un compte rendu devient lisible du commercial. */}
-      {a.estManager && (
+      {gestion && (
         <section
           style={{
             background: entretien.statut === 'PARTAGE' ? '#E0F8F3' : '#FFFDF5',
@@ -177,7 +191,7 @@ export default async function Page({
         </section>
       )}
 
-      {!a.estManager && (
+      {!gestion && (
         <Message ton="info">
           Ce compte rendu t’est partagé par ton manager. Les actions ci-dessous sont le
           récapitulatif de ce qui a été décidé.
@@ -273,7 +287,7 @@ export default async function Page({
                 <th style={S.th}>Porteur</th>
                 <th style={S.th}>Échéance</th>
                 <th style={S.th}>Statut</th>
-                {a.estManager && <th style={S.th}></th>}
+                {gestion && <th style={S.th}></th>}
               </tr>
             </thead>
             <tbody>
@@ -307,7 +321,7 @@ export default async function Page({
                       {ACTION_STATUT_META[act.statut].label}
                     </Badge>
                   </td>
-                  {a.estManager && (
+                  {gestion && (
                     <td style={{ ...S.td, textAlign: 'right' }}>
                       {isActionOuverte(act.statut) && (
                         <form action="/api/one-on-one/action" method="POST">
@@ -332,7 +346,7 @@ export default async function Page({
           null car filtrerPourLecteur() l'a retirée avant même le rendu. */}
       {/* Le bandeau s'affiche dès qu'il y a QUELQUE CHOSE de privé — zone manager ou verbatim.
           Tester `prive` seul masquerait la transcription d'un entretien sans note manager. */}
-      {a.estManager && (entretien.prive || entretien.notesBrutes || entretien.transcription) && (
+      {gestion && (entretien.prive || entretien.notesBrutes || entretien.transcription) && (
         <BandeauPrive>
           <Bloc titre="Moral et motivation" texte={entretien.prive?.moral ?? ''} />
           {entretien.prive && entretien.prive.humeur !== null && (

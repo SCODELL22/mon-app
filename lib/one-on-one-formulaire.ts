@@ -15,6 +15,7 @@ import {
 } from './one-on-one';
 import { nettoyerTranscription } from './extraction-trame';
 import { getOneOnOne, listActions, upsertAction, upsertOneOnOne } from './one-on-one-store';
+import { gere, refus, type Acces } from './access';
 
 const STATUTS_VALIDES: ActionStatut[] = ['OUVERTE', 'EN_COURS', 'FAITE', 'ABANDONNEE'];
 
@@ -32,6 +33,23 @@ function nombre(form: FormData, cle: string): number {
 function dateOuNull(form: FormData, cle: string): string | null {
   const v = texte(form, cle);
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+/**
+ * Contrôle de périmètre commun aux routes d'écriture d'un entretien. Renvoie une réponse de refus,
+ * ou null si l'écriture est permise.
+ */
+export async function horsPerimetre(
+  a: Acces,
+  commercialIdCible: string,
+  entretienId: string,
+): Promise<Response | null> {
+  if (!gere(a, commercialIdCible)) return refus('forbidden');
+  if (entretienId) {
+    const existant = await getOneOnOne(entretienId);
+    if (existant && !gere(a, existant.commercialId)) return refus('forbidden');
+  }
+  return null;
 }
 
 /**
@@ -98,6 +116,11 @@ export async function enregistrerEntretien(
   const echeances = form.getAll('action_echeance').map((v) => String(v));
   const ids = form.getAll('action_id').map((v) => String(v));
   const statuts = form.getAll('action_statut').map((v) => String(v));
+  // Un identifiant d'action n'est repris que s'il appartient déjà à CET entretien. Sinon, un
+  // formulaire forgé pourrait écraser l'action d'un autre entretien (autre équipe comprise).
+  const idsConnus = new Set(
+    existant ? (await listActions({ oneOnOneId: entretienId })).map((x) => x.id) : [],
+  );
 
   for (let i = 0; i < libelles.length; i++) {
     const libelle = libelles[i];
@@ -106,7 +129,7 @@ export async function enregistrerEntretien(
       ? (statuts[i] as ActionStatut)
       : 'OUVERTE';
     await upsertAction({
-      id: ids[i] || nouvelId('act'),
+      id: ids[i] && idsConnus.has(ids[i]) ? ids[i] : nouvelId('act'),
       oneOnOneId: entretienId,
       commercialId,
       libelle,

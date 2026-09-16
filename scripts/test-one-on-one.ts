@@ -21,13 +21,18 @@ import {
   type OneOnOne,
 } from '../lib/one-on-one';
 import {
+  accesPourEmail,
   filtrerActionsPourLecteur,
   filtrerPourLecteur,
+  gere,
+  peutAdministrer,
+  peutEcrire,
   peutLireEntretien,
   peutVoirCommercial,
   type Acces,
 } from '../lib/access';
 import { calculerPipeline } from '../lib/one-on-one-pipeline';
+import { horsPerimetre } from '../lib/one-on-one-formulaire';
 import {
   ExtractionIndisponible,
   extractionDisponible,
@@ -104,6 +109,7 @@ function commercial(p: Partial<Commercial> = {}): Commercial {
     nom: 'Alex Martin',
     libelleBoond: 'Alex MARTIN',
     email: 'alex.martin@ippon.fr',
+    managerEmail: '',
     pole: 'Data & IA',
     objectifAnnuel: 1_000_000,
     actif: true,
@@ -168,11 +174,15 @@ async function main() {
   // ============================================================ BROUILLON / PARTAGE
   console.log('\n--- Brouillon et partage ---');
 
+  // « MANAGER » désigne ici l'administrateur (MANAGER_EMAILS), qui voit tout. Le manager
+  // d'équipe, au périmètre restreint, est testé dans la section suivante.
   const acces = (role: 'MANAGER' | 'COMMERCIAL' | 'AUCUN', comId = 'com_1'): Acces => ({
-    role,
+    role: role === 'MANAGER' ? 'ADMIN' : role,
     email: role === 'MANAGER' ? 'manager@ippon.fr' : 'alex.martin@ippon.fr',
     uid: 'u1',
     commercial: role === 'COMMERCIAL' ? commercial({ id: comId }) : null,
+    estAdmin: role === 'MANAGER',
+    managesIds: [],
     estManager: role === 'MANAGER',
   });
 
@@ -227,6 +237,64 @@ async function main() {
   ok(
     actionsCommercial.length === 1 && actionsCommercial[0].id === 'ap',
     'le commercial ne voit PAS les actions issues d’un brouillon',
+  );
+
+  // ============================================================ MANAGER D'ÉQUIPE
+  console.log('\n--- Périmètre d’un manager d’équipe ---');
+
+  // Léa manage com_1 ; elle est elle-même suivie (fiche com_lea) par l'admin.
+  const lea: Acces = {
+    role: 'MANAGER',
+    email: 'lea@ippon.fr',
+    uid: 'u2',
+    commercial: commercial({ id: 'com_lea', email: 'lea@ippon.fr' }),
+    estAdmin: false,
+    managesIds: ['com_1'],
+    estManager: true,
+  };
+  const eqBrouillon = entretien({ id: 'eq_b', commercialId: 'com_1', statut: 'BROUILLON', partageLe: null });
+  const autreEquipe = entretien({ id: 'autre_b', commercialId: 'com_2', statut: 'BROUILLON', partageLe: null });
+  const autrePartage = entretien({ id: 'autre_p', commercialId: 'com_2', statut: 'PARTAGE' });
+  const leaBrouillon = entretien({ id: 'lea_b', commercialId: 'com_lea', statut: 'BROUILLON', partageLe: null });
+  const leaPartage = entretien({ id: 'lea_p', commercialId: 'com_lea', statut: 'PARTAGE' });
+
+  ok(peutEcrire(lea), 'un manager d’équipe accède à la saisie');
+  ok(!peutAdministrer(lea), 'mais pas à la gestion des fiches ni à la sauvegarde');
+  ok(gere(lea, 'com_1') && !gere(lea, 'com_2'), 'il ne gère que ses managés');
+  ok(!gere(lea, ''), 'identifiant vide -> non géré (fail-closed)');
+  ok(peutLireEntretien(lea, eqBrouillon), 'il lit les brouillons de son équipe');
+  ok(!peutLireEntretien(lea, autreEquipe), 'il ne lit PAS le brouillon d’une autre équipe');
+  ok(!peutLireEntretien(lea, autrePartage), 'ni un entretien partagé d’une autre équipe');
+  ok(!peutVoirCommercial(lea, 'com_2'), 'ni la fiche d’un commercial d’une autre équipe');
+  ok(peutVoirCommercial(lea, 'com_lea'), 'il ouvre sa propre fiche de suivi');
+  ok(!peutLireEntretien(lea, leaBrouillon), 'il ne lit pas son propre entretien en brouillon');
+  ok(!gere(lea, 'com_lea'), 'il ne gère pas sa propre fiche');
+
+  const vuLea = filtrerPourLecteur([eqBrouillon, autreEquipe, autrePartage, leaBrouillon, leaPartage], lea);
+  ok(
+    vuLea.map((e) => e.id).sort().join() === 'eq_b,lea_p',
+    'filtrage : son équipe + ses propres entretiens partagés, rien d’autre',
+  );
+  ok(vuLea.find((e) => e.id === 'eq_b')?.prive !== null, 'zone privée conservée pour son équipe');
+  ok(vuLea.find((e) => e.id === 'lea_p')?.prive === null, 'zone privée RETIRÉE sur son propre entretien');
+  ok(
+    !JSON.stringify(vuLea.find((e) => e.id === 'lea_p')).includes('augmentation'),
+    'aucune note RH de son propre entretien ne fuit',
+  );
+
+  const actionsLea = filtrerActionsPourLecteur(
+    [
+      action({ id: 'x1', oneOnOneId: 'eq_b', commercialId: 'com_1' }),
+      action({ id: 'x2', oneOnOneId: 'autre_p', commercialId: 'com_2' }),
+      action({ id: 'x3', oneOnOneId: 'lea_b', commercialId: 'com_lea' }),
+      action({ id: 'x4', oneOnOneId: 'lea_p', commercialId: 'com_lea' }),
+    ],
+    [eqBrouillon, autreEquipe, autrePartage, leaBrouillon, leaPartage],
+    lea,
+  );
+  ok(
+    actionsLea.map((x) => x.id).sort().join() === 'x1,x4',
+    'actions : son équipe + ses propres actions partagées uniquement',
   );
 
   // ============================================================ TRANSCRIPTION
@@ -467,6 +535,7 @@ async function main() {
     nom: 'Test Commercial',
     libelleBoond: 'Test COMMERCIAL',
     email: 'Test.Commercial@ippon.fr', // volontairement en casse mixte
+    managerEmail: 'Chef.Equipe@ippon.fr',
     pole: 'Data & IA',
     objectifAnnuel: 500000,
     actif: true,
@@ -477,6 +546,59 @@ async function main() {
   ok(parEmail?.id === 'com_test', 'recherche par email insensible à la casse');
   ok((await getCommercialParEmail('')) === null, 'email vide -> aucun commercial (pas de match large)');
   ok((await getCommercialParEmail('inconnu@ippon.fr')) === null, 'email inconnu -> null');
+  ok(c.managerEmail === 'chef.equipe@ippon.fr', "l'email du manager est normalisé en minuscules");
+
+  // Calcul des droits de bout en bout, sur le stockage réel.
+  await upsertCommercial({
+    id: 'com_inactif',
+    nom: 'Parti',
+    libelleBoond: '',
+    email: '',
+    managerEmail: 'chef.equipe@ippon.fr',
+    pole: '',
+    objectifAnnuel: 0,
+    actif: false,
+  });
+  await upsertCommercial({
+    id: 'com_self',
+    nom: 'Auto-rattaché',
+    libelleBoond: '',
+    email: 'auto@ippon.fr',
+    managerEmail: 'auto@ippon.fr', // interdit par le formulaire ; access.ts doit l'ignorer quand même
+    pole: '',
+    objectifAnnuel: 0,
+    actif: true,
+  });
+  const envAvant = process.env.MANAGER_EMAILS;
+  process.env.MANAGER_EMAILS = 'direction@ippon.fr';
+  try {
+    const chef = await accesPourEmail('CHEF.EQUIPE@ippon.fr', 'u');
+    ok(chef.role === 'MANAGER', 'manager rattaché -> rôle MANAGER');
+    ok(
+      chef.managesIds.join() === 'com_test',
+      'périmètre = fiches actives rattachées (fiche inactive exclue)',
+    );
+    ok(!chef.estAdmin, 'un manager d’équipe n’est pas admin');
+
+    const auto = await accesPourEmail('auto@ippon.fr', 'u');
+    ok(auto.managesIds.length === 0, 'être son propre manager ne donne aucun périmètre');
+    ok(auto.role === 'COMMERCIAL', '… il reste simple commercial sur sa fiche');
+
+    const dir = await accesPourEmail('direction@ippon.fr', 'u');
+    ok(dir.role === 'ADMIN' && gere(dir, 'com_test'), 'MANAGER_EMAILS -> admin, gère tout');
+
+    const commercialSimple = await accesPourEmail('test.commercial@ippon.fr', 'u');
+    ok(
+      commercialSimple.role === 'COMMERCIAL' && !peutEcrire(commercialSimple),
+      'le commercial suivi reste en lecture seule',
+    );
+
+    const inconnu = await accesPourEmail('personne@ippon.fr', 'u');
+    ok(inconnu.role === 'AUCUN', 'compte sans fiche ni équipe -> aucun accès');
+  } finally {
+    if (envAvant === undefined) delete process.env.MANAGER_EMAILS;
+    else process.env.MANAGER_EMAILS = envAvant;
+  }
 
   const enregistre = await upsertOneOnOne({
     id: 'o3_test',
@@ -538,6 +660,23 @@ async function main() {
   ok((await listActions({ oneOnOneId: 'inconnu' })).length === 0, 'filtre par entretien inconnu -> vide');
 
   ok(typeof aujourdHui() === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(aujourdHui()), 'aujourdHui() au format ISO');
+
+  // Garde des routes d'écriture : la fiche cible ET l'entretien d'origine doivent être gérés.
+  await upsertOneOnOne({ ...enregistre, id: 'o3_autre', commercialId: 'com_self' });
+  const chefSeul = await accesPourEmail('chef.equipe@ippon.fr', 'u');
+  ok((await horsPerimetre(chefSeul, 'com_test', '')) === null, 'écriture autorisée sur son managé');
+  ok(
+    (await horsPerimetre(chefSeul, 'com_test', 'o3_test')) === null,
+    'édition autorisée d’un entretien de son managé',
+  );
+  ok(
+    (await horsPerimetre(chefSeul, 'com_self', ''))?.status === 403,
+    'création refusée hors périmètre',
+  );
+  ok(
+    (await horsPerimetre(chefSeul, 'com_test', 'o3_autre'))?.status === 403,
+    'réécriture refusée d’un entretien d’une autre équipe, même en ciblant son managé',
+  );
 
   // Nettoyage des fichiers créés par les tests (même convention que scripts/test-store.ts).
   // Toléré s'il échoue : sur certains montages (conteneur, volume monté en lecture seule) la

@@ -1,6 +1,6 @@
 // Vue transverse des actions, organisée semaine par semaine — c'est l'écran de pilotage
 // hebdomadaire : ce qui est en retard, ce qui tombe cette semaine, ce qui arrive.
-import { acces, filtrerActionsPourLecteur, peutAccederAuModule, peutEcrire } from '@/lib/access';
+import { acces, filtrerActionsPourLecteur, gere, peutAccederAuModule, peutEcrire } from '@/lib/access';
 import { listActions, listCommerciaux, listOneOnOnes } from '@/lib/one-on-one-store';
 import {
   ACTION_STATUT_META,
@@ -20,11 +20,15 @@ function LigneAction({
   act,
   nomCommercial,
   today,
+  colonne,
   editable,
 }: {
   act: Action;
   nomCommercial: string;
   today: string;
+  /** La colonne d'action existe dans le tableau (le lecteur gère au moins une fiche). */
+  colonne: boolean;
+  /** Le bouton est proposé sur CETTE ligne (le lecteur gère la fiche concernée). */
   editable: boolean;
 }) {
   const retard = isEnRetard(act, today);
@@ -49,16 +53,18 @@ function LigneAction({
           {ACTION_STATUT_META[act.statut].label}
         </Badge>
       </td>
-      {editable && (
+      {colonne && (
         <td style={{ ...S.td, textAlign: 'right' }}>
-          <form action="/api/one-on-one/action" method="POST" style={{ display: 'inline' }}>
-            <input type="hidden" name="id" value={act.id} />
-            <input type="hidden" name="statut" value="FAITE" />
-            <input type="hidden" name="retour" value="/1-1/actions" />
-            <button type="submit" style={S.btnGhost}>
-              Faite
-            </button>
-          </form>
+          {editable && (
+            <form action="/api/one-on-one/action" method="POST" style={{ display: 'inline' }}>
+              <input type="hidden" name="id" value={act.id} />
+              <input type="hidden" name="statut" value="FAITE" />
+              <input type="hidden" name="retour" value="/1-1/actions" />
+              <button type="submit" style={S.btnGhost}>
+                Faite
+              </button>
+            </form>
+          )}
         </td>
       )}
     </tr>
@@ -71,6 +77,8 @@ export default async function Page() {
 
   const today = aujourdHui();
   const semaineCourante = semaineIso(today);
+  // Colonne « Faite » affichée si le lecteur gère au moins une fiche ; le bouton lui-même n'apparaît
+  // que sur les actions de ses managés (un manager suivi ne clôture pas ses propres actions).
   const editable = peutEcrire(a);
 
   const [commerciaux, toutes, entretiens] = await Promise.all([
@@ -98,7 +106,7 @@ export default async function Page() {
   const enTete: Record<string, string> = { '': 'Sans échéance' };
 
   return (
-    <Shell titre="Actions" estManager={a.estManager}>
+    <Shell titre="Actions" estManager={a.estManager} estAdmin={a.estAdmin}>
       <header style={{ marginBottom: 18 }}>
         <h1 style={S.h1}>Actions à suivre</h1>
         <p style={S.sub}>
@@ -142,7 +150,8 @@ export default async function Page() {
                   act={act}
                   nomCommercial={nomDe.get(act.commercialId) ?? '—'}
                   today={today}
-                  editable={editable}
+                  colonne={editable}
+                  editable={gere(a, act.commercialId)}
                 />
               ))}
             </tbody>
@@ -185,7 +194,8 @@ export default async function Page() {
                       act={act}
                       nomCommercial={nomDe.get(act.commercialId) ?? '—'}
                       today={today}
-                      editable={editable}
+                      colonne={editable}
+                  editable={gere(a, act.commercialId)}
                     />
                   ))}
                 </tbody>

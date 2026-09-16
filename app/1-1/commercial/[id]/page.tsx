@@ -4,6 +4,7 @@ import {
   acces,
   filtrerActionsPourLecteur,
   filtrerPourLecteur,
+  gere,
   peutAccederAuModule,
   peutVoirCommercial,
 } from '@/lib/access';
@@ -33,6 +34,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   // filtrés un par un par filtrerPourLecteur() : les brouillons n'y apparaissent pas.
   if (!peutVoirCommercial(a, commercial.id)) return <AccesRefuse />;
 
+  // Droits de gestion sur CETTE fiche : un manager suivi par son N+1 consulte sa propre fiche
+  // en simple lecteur, sans boutons d'édition ni zone privée.
+  const gestion = gere(a, commercial.id);
+
   const today = aujourdHui();
   const [brutEntretiens, brutActions, pipeline] = await Promise.all([
     listOneOnOnes(commercial.id),
@@ -51,7 +56,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     : null;
 
   return (
-    <Shell titre={commercial.nom} estManager={a.estManager}>
+    <Shell titre={commercial.nom} estManager={a.estManager} estAdmin={a.estAdmin}>
       <header
         style={{
           marginBottom: 18,
@@ -69,7 +74,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {dernier ? ` — dernier 1:1 le ${dateFr(dernier.date)} (${joursEntre(dernier.date, today)} j)` : ' — aucun entretien enregistré'}
           </p>
         </div>
-        {a.estManager && (
+        {gestion && (
           <a href={`/1-1/nouveau?commercial=${commercial.id}`} style={S.btn}>
             Nouveau 1:1
           </a>
@@ -91,9 +96,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <Message ton="info">
           Aucune opportunité BoondManager rattachée à cette fiche. Vérifie le champ{' '}
           <strong>libellé BoondManager</strong> dans{' '}
-          <a href={`/1-1/commerciaux?edit=${commercial.id}`} style={S.link}>
-            la fiche
-          </a>{' '}
+          {a.estAdmin ? (
+            <a href={`/1-1/commerciaux?edit=${commercial.id}`} style={S.link}>
+              la fiche
+            </a>
+          ) : (
+            'la fiche (à demander à l’administrateur)'
+          )}{' '}
           : il doit reprendre à l’identique le « Responsable manager » de l’export.
         </Message>
       )}
@@ -107,7 +116,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <th style={S.th}>Porteur</th>
                 <th style={S.th}>Échéance</th>
                 <th style={S.th}>Statut</th>
-                {a.estManager && <th style={S.th}></th>}
+                {gestion && <th style={S.th}></th>}
               </tr>
             </thead>
             <tbody>
@@ -131,7 +140,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                         {ACTION_STATUT_META[act.statut].label}
                       </Badge>
                     </td>
-                    {a.estManager && (
+                    {gestion && (
                       <td style={{ ...S.td, textAlign: 'right' }}>
                         <form action="/api/one-on-one/action" method="POST">
                           <input type="hidden" name="id" value={act.id} />
@@ -215,7 +224,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                     <a href={`/1-1/entretien/${e.id}`} style={S.link}>
                       {dateFr(e.date)}
                     </a>{' '}
-                    {a.estManager && e.statut === 'BROUILLON' && (
+                    {gestion && e.statut === 'BROUILLON' && (
                       <Badge ton="yellow">brouillon</Badge>
                     )}
                   </td>

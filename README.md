@@ -127,19 +127,26 @@ Chaque entretien a deux zones :
 
 - **zone partagée** (chiffres, deals à risque, activité, administratif, développement, décisions,
   actions) : lisible par le commercial concerné ;
-- **zone manager** (moral, sujets RH, notes brutes de séance) : lisible des seuls managers. Elle
+- **zone manager** (moral, sujets RH, notes brutes de séance, transcription) : lisible du seul
+  manager rattaché à la fiche et des administrateurs. Elle
   n’est pas masquée en CSS, elle **n’est jamais envoyée au navigateur** du commercial.
 
 Les rôles se configurent ainsi :
 
-- `MANAGER_EMAILS` (variable d’environnement) liste les managers. **Non renseignée = aucun
-  manager = module bloqué en écriture**, volontairement (fail-closed).
+- `MANAGER_EMAILS` (variable d’environnement) liste les **administrateurs** (direction
+  d’agence) : ils voient et écrivent tout, gèrent les fiches et la sauvegarde. **Non renseignée =
+  aucun admin = module inadministrable**, volontairement (fail-closed).
+- **Manager d’équipe** : tout compte dont l’adresse figure dans le champ « Manager (N+1) » d’au
+  moins une fiche active. Il mène les 1:1 de **ses** managés et en lit tout (zone privée
+  comprise), et ne voit **aucune** autre fiche. Seul un administrateur pose ce rattachement.
+  Un manager lui-même suivi lit sa propre fiche comme un commercial (partagés seulement, sans
+  zone privée). Son adresse doit figurer dans `ALLOWED_EMAILS` pour qu’il puisse créer son compte.
 - Un commercial accède à ses propres comptes rendus dès que son adresse figure dans sa fiche
   (`/1-1/commerciaux`). Champ laissé vide = aucun accès.
 - Tout autre compte connecté reçoit un écran « accès non autorisé ».
 
 **Sauvegarde.** `GET /api/one-on-one/export` télécharge l’intégralité du module en JSON (zone
-privée comprise, managers uniquement). À faire régulièrement : c’est le seul filet.
+privée comprise, administrateurs uniquement). À faire régulièrement : c’est le seul filet.
 
 **Rattachement au pipeline.** Le champ *libellé BoondManager* d’une fiche doit reprendre **à
 l’identique** (casse comprise) le « Responsable manager » de l’export. C’est ce qui permet

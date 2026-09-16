@@ -4,26 +4,41 @@
 // (cf. SETUP.md). Ce module ne peut PAS s'en contenter — il contient des appréciations
 // individuelles et des sujets RH. Les rôles définis ici s'appliquent donc uniquement à /1-1.
 //
-// Deux rôles :
-//   - MANAGER    : voit et écrit tout, y compris la zone privée.
-//   - COMMERCIAL : voit UNIQUEMENT ses propres entretiens, zone partagée seulement, en lecture.
-//   - (aucun)    : pas d'accès au module. Le lien n'apparaît pas.
+// Trois niveaux, cumulables pour une même personne :
+//   - ADMIN      : emails listés dans MANAGER_EMAILS (direction d'agence). Voit et écrit tout,
+//                  gère les fiches et le rattachement manager -> managé, télécharge la sauvegarde.
+//   - MANAGER    : email renseigné comme « manager » sur au moins une fiche active. Voit et écrit
+//                  les entretiens de SES managés uniquement, zone privée comprise. Rien d'autre.
+//   - COMMERCIAL : email renseigné sur sa propre fiche. Lit ses entretiens PARTAGÉS, zone
+//                  partagée seulement.
+//   - (aucun)    : pas d'accès au module.
+//
+// Une même personne peut être MANAGER de son équipe ET COMMERCIAL suivi par son propre N+1 :
+// elle gère ses managés, mais ne lit sur sa propre fiche que ce qu'un commercial lit — jamais
+// la zone privée de son propre entretien. D'où le raisonnement PAR FICHE (gere()) plutôt que
+// par rôle global dans toutes les gardes ci-dessous.
 //
 // Principe FAIL-CLOSED : en cas de doute (variable non configurée, session illisible), on refuse.
 // Un module de suivi RH qui s'ouvre par défaut est un incident, pas un désagrément.
 import { cookies } from 'next/headers';
 import { verifySession, SESSION_COOKIE, type SessionPayload } from './auth';
-import { getCommercialParEmail } from './one-on-one-store';
-import { visiblePour, type Commercial, type OneOnOne } from './one-on-one';
+import { getCommercialParEmail, listCommerciauxParManager } from './one-on-one-store';
+import { stripPrivate, type Commercial, type OneOnOne } from './one-on-one';
 
-export type Role = 'MANAGER' | 'COMMERCIAL' | 'AUCUN';
+export type Role = 'ADMIN' | 'MANAGER' | 'COMMERCIAL' | 'AUCUN';
 
 export interface Acces {
+  /** Rôle le plus élevé, pour l'affichage. Les gardes, elles, raisonnent fiche par fiche. */
   role: Role;
   email: string;
   uid: string;
-  /** Renseigné uniquement si role === 'COMMERCIAL' : la fiche du commercial connecté. */
+  /** Fiche du compte connecté s'il est lui-même suivi (peut coexister avec MANAGER). */
   commercial: Commercial | null;
+  /** Direction d'agence : périmètre illimité. */
+  estAdmin: boolean;
+  /** Identifiants des fiches dont ce compte est le manager direct. Vide pour un admin (inutile). */
+  managesIds: string[];
+  /** Vrai si le compte peut mener des 1:1 (admin, ou manager d'au moins une fiche). */
   estManager: boolean;
 }
 
@@ -32,32 +47,35 @@ export const ACCES_REFUSE: Acces = {
   email: '',
   uid: '',
   commercial: null,
+  estAdmin: false,
+  managesIds: [],
   estManager: false,
 };
 
 /**
- * Liste des managers, via la variable d'environnement MANAGER_EMAILS (emails séparés par des
- * virgules). Non définie = aucun manager = module inaccessible en écriture. C'est volontaire :
- * mieux vaut un module inutilisable qu'un module ouvert à tout compte @ippon.fr.
+ * Administrateurs du module, via la variable d'environnement MANAGER_EMAILS (emails séparés par
+ * des virgules). Le nom est conservé pour ne pas casser la configuration déjà en production.
+ * Non définie = aucun admin. C'est volontaire : mieux vaut un module inutilisable qu'un module
+ * ouvert à tout compte @ippon.fr.
  */
-function managerEmails(): string[] {
+function adminEmails(): string[] {
   return (process.env.MANAGER_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
-export function estEmailManager(email: string): boolean {
+export function estEmailAdmin(email: string): boolean {
   const e = email.trim().toLowerCase();
   if (!e) return false;
-  return managerEmails().includes(e);
+  return adminEmails().includes(e);
 }
 
 /**
  * Session courante lue depuis le cookie.
  *
  * Cas du développement local : proxy.ts désactive l'authentification quand AUTH_SECRET n'est pas
- * défini. On reste cohérent ici en simulant un manager local — SANS jamais le faire dès que
+ * défini. On reste cohérent ici en simulant un admin local — SANS jamais le faire dès que
  * AUTH_SECRET existe, et jamais en production (NODE_ENV === 'production' impose AUTH_SECRET, cf.
  * proxy.ts qui renvoie 503 sinon).
  */
@@ -71,7 +89,47 @@ async function sessionCourante(): Promise<SessionPayload | null> {
 }
 
 /**
- * Détermine le rôle de l'utilisateur courant pour le module 1:1.
+ * Calcule les droits d'un email donné. Séparé de acces() pour être testable sans cookie.
+ */
+export async function accesPourEmail(email: string, uid: string): Promise<Acces> {
+  const e = email.trim().toLowerCase();
+  if (!e) return ACCES_REFUSE;
+
+  if (estEmailAdmin(e)) {
+    return {
+      role: 'ADMIN',
+      email: e,
+      uid,
+      commercial: null,
+      estAdmin: true,
+      managesIds: [],
+      estManager: true,
+    };
+  }
+
+  const [ficheBrute, equipe] = await Promise.all([
+    getCommercialParEmail(e),
+    listCommerciauxParManager(e),
+  ]);
+  const commercial = ficheBrute && ficheBrute.actif ? ficheBrute : null;
+  // Garde-fou : une fiche dont on serait à la fois le titulaire et le manager ne donne JAMAIS
+  // accès à sa propre zone privée. Le formulaire l'interdit déjà ; on ne s'y fie pas.
+  const managesIds = equipe.map((c) => c.id).filter((id) => id !== ficheBrute?.id);
+
+  const role: Role = managesIds.length ? 'MANAGER' : commercial ? 'COMMERCIAL' : 'AUCUN';
+  return {
+    role,
+    email: e,
+    uid,
+    commercial,
+    estAdmin: false,
+    managesIds,
+    estManager: managesIds.length > 0,
+  };
+}
+
+/**
+ * Détermine les droits de l'utilisateur courant pour le module 1:1.
  * À appeler en tête de CHAQUE page et de CHAQUE route API du module — il n'y a pas de garde
  * globale : proxy.ts vérifie qu'on est connecté, pas qu'on a le droit de lire ces données.
  */
@@ -79,24 +137,20 @@ export async function acces(): Promise<Acces> {
   const session = await sessionCourante();
   if (!session) return ACCES_REFUSE;
 
-  const email = session.email.toLowerCase();
-
   // En dev sans AUTH_SECRET, on donne la main pour pouvoir travailler localement.
   if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== 'production') {
-    return { role: 'MANAGER', email, uid: session.uid, commercial: null, estManager: true };
+    return {
+      role: 'ADMIN',
+      email: session.email.toLowerCase(),
+      uid: session.uid,
+      commercial: null,
+      estAdmin: true,
+      managesIds: [],
+      estManager: true,
+    };
   }
 
-  if (estEmailManager(email)) {
-    return { role: 'MANAGER', email, uid: session.uid, commercial: null, estManager: true };
-  }
-
-  // Pas manager : accès seulement si le compte correspond à un commercial suivi.
-  const commercial = await getCommercialParEmail(email);
-  if (commercial && commercial.actif) {
-    return { role: 'COMMERCIAL', email, uid: session.uid, commercial, estManager: false };
-  }
-
-  return { ...ACCES_REFUSE, email, uid: session.uid };
+  return accesPourEmail(session.email, session.uid);
 }
 
 // ---------------------------------------------------------------- Gardes
@@ -106,26 +160,43 @@ export function peutAccederAuModule(a: Acces): boolean {
   return a.role !== 'AUCUN';
 }
 
-/** Seul un manager écrit. Un commercial ne peut ni créer, ni modifier, ni clôturer une action. */
+/**
+ * Accès aux écrans de saisie (nouveau 1:1). Ne suffit JAMAIS seul : toute écriture doit aussi
+ * passer par gere(a, commercialId) sur la fiche concernée.
+ */
 export function peutEcrire(a: Acces): boolean {
-  return a.role === 'MANAGER';
+  return a.estAdmin || a.managesIds.length > 0;
+}
+
+/** Gestion des fiches, du rattachement manager et de la sauvegarde complète : admin seul. */
+export function peutAdministrer(a: Acces): boolean {
+  return a.estAdmin;
+}
+
+/**
+ * Cœur du cloisonnement : ce compte est-il responsable de CETTE fiche ?
+ * Vrai = lecture de tous ses entretiens (brouillons et zone privée compris) et écriture.
+ */
+export function gere(a: Acces, commercialId: string): boolean {
+  if (!commercialId) return false;
+  if (a.estAdmin) return true;
+  return a.managesIds.includes(commercialId);
 }
 
 /**
  * Droit d'ouvrir la FICHE d'un commercial (pipeline, historique, actions).
- * Distinct de peutLireEntretien : la fiche n'a pas de statut de partage, seuls les entretiens
- * qu'elle liste en ont un. Un commercial accède à sa fiche, jamais à celle d'un collègue.
+ * Un manager ouvre celles de ses managés ; un commercial la sienne ; jamais celle d'un collègue.
  */
 export function peutVoirCommercial(a: Acces, commercialId: string): boolean {
-  if (a.role === 'MANAGER') return true;
-  if (a.role === 'COMMERCIAL') return a.commercial?.id === commercialId;
-  return false;
+  if (gere(a, commercialId)) return true;
+  return !!a.commercial && a.commercial.id === commercialId;
 }
 
 /**
- * Un manager lit tous les entretiens, brouillons compris ; un commercial uniquement les siens,
- * ET seulement une fois PARTAGÉS. Un brouillon qui le concerne lui reste invisible : c'est ce qui
- * permet au manager de relire et corriger avant que quoi que ce soit ne soit lisible.
+ * Le responsable de la fiche lit tous ses entretiens, brouillons compris ; le commercial concerné
+ * uniquement les siens, ET seulement une fois PARTAGÉS. Un brouillon qui le concerne lui reste
+ * invisible : c'est ce qui permet au manager de relire et corriger avant que quoi que ce soit ne
+ * soit lisible.
  *
  * Cette fonction décide de la VISIBILITÉ de l'entretien, pas de son contenu : le filtrage du
  * contenu (zone privée) est fait par filtrerPourLecteur() ci-dessous.
@@ -137,23 +208,24 @@ export function peutLireEntretien(
   a: Acces,
   e: Pick<OneOnOne, 'commercialId'> & Partial<Pick<OneOnOne, 'statut'>>,
 ): boolean {
-  if (a.role === 'MANAGER') return true;
-  if (a.role === 'COMMERCIAL') {
-    return a.commercial?.id === e.commercialId && e.statut === 'PARTAGE';
-  }
-  return false;
+  if (gere(a, e.commercialId)) return true;
+  return !!a.commercial && a.commercial.id === e.commercialId && e.statut === 'PARTAGE';
 }
 
 /**
  * Filtre une liste d'entretiens pour un lecteur donné : ne garde que ce qu'il a le droit de voir,
- * puis retire la zone privée s'il n'est pas manager.
+ * puis retire la zone privée de chaque entretien dont il n'est pas responsable.
+ *
+ * Le retrait se fait entretien par entretien (et non « tout ou rien » selon le rôle) : un manager
+ * qui est aussi suivi voit la zone privée de ses managés, jamais celle de ses propres entretiens.
  *
  * Toute donnée d'entretien qui part vers un client DOIT passer par ici. C'est le seul point de
  * passage vérifié par les tests (scripts/test-one-on-one.ts).
  */
 export function filtrerPourLecteur<T extends OneOnOne>(items: T[], a: Acces): T[] {
-  const lisibles = items.filter((e) => peutLireEntretien(a, e));
-  return visiblePour(lisibles, a.estManager);
+  return items
+    .filter((e) => peutLireEntretien(a, e))
+    .map((e) => (gere(a, e.commercialId) ? e : stripPrivate(e)));
 }
 
 /**
@@ -169,7 +241,7 @@ export function filtrerActionsPourLecteur<A extends { commercialId: string; oneO
   entretiens: OneOnOne[],
   a: Acces,
 ): A[] {
-  if (a.estManager) return actions;
+  if (a.estAdmin) return actions;
   const lisibles = new Set(
     entretiens.filter((e) => peutLireEntretien(a, e)).map((e) => e.id),
   );

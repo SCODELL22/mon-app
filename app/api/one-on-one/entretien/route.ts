@@ -5,6 +5,7 @@
 // La lecture du formulaire vit dans lib/one-on-one-formulaire.ts : elle est partagée avec
 // /api/one-on-one/extraction, que le second bouton du même formulaire appelle via `formaction`.
 import { acces, peutEcrire, refus } from '@/lib/access';
+import { horsPerimetre } from '@/lib/one-on-one-formulaire';
 import { redirectTo } from '@/lib/auth';
 import { getCommercial } from '@/lib/one-on-one-store';
 import { enregistrerEntretien } from '@/lib/one-on-one-formulaire';
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
 
   const commercial = await getCommercial(String(form.get('commercialId') ?? '').trim());
   if (!commercial) return redirectTo('/1-1?error=commercial-inconnu');
+  // Périmètre : la fiche cible ET, en édition, la fiche d'origine de l'entretien. Sans ce second
+  // contrôle, un manager pourrait réécrire l'entretien d'une autre équipe en forgeant son id.
+  const denied = await horsPerimetre(a, commercial.id, String(form.get('id') ?? '').trim());
+  if (denied) return denied;
 
   const entretien = await enregistrerEntretien(form, a.email);
 

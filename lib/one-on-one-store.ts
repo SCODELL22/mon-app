@@ -120,6 +120,10 @@ async function ensureSchema(): Promise<void> {
         ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS statut text NOT NULL DEFAULT 'BROUILLON';
         ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS partage_le timestamptz;
         ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS transcription text NOT NULL DEFAULT '';
+        -- Rattachement hiérarchique : vide par défaut, donc aucune fiche existante ne devient
+        -- visible d'un nouveau manager sans un rattachement explicite par un administrateur.
+        ALTER TABLE commerciaux ADD COLUMN IF NOT EXISTS manager_email text NOT NULL DEFAULT '';
+        CREATE INDEX IF NOT EXISTS commerciaux_manager_idx ON commerciaux (lower(manager_email));
       `)
       .then(() => undefined);
   }
@@ -140,6 +144,7 @@ function rowToCommercial(r: any): Commercial {
     nom: r.nom,
     libelleBoond: r.libelle_boond ?? '',
     email: (r.email ?? '').toLowerCase(),
+    managerEmail: (r.manager_email ?? r.managerEmail ?? '').toLowerCase(),
     pole: r.pole ?? '',
     objectifAnnuel: Number(r.objectif_annuel ?? 0),
     actif: r.actif !== false,
@@ -233,7 +238,11 @@ function writeJson(file: string, data: unknown): void {
 }
 
 function memCommerciaux(): Commercial[] {
-  return (g.__o3Commerciaux ??= readJson<Commercial[]>(F_COMMERCIAUX, []));
+  // Normalisation : les fiches écrites avant le rattachement manager n'ont pas le champ.
+  return (g.__o3Commerciaux ??= readJson<Commercial[]>(F_COMMERCIAUX, []).map((c) => ({
+    ...c,
+    managerEmail: (c.managerEmail ?? '').toLowerCase(),
+  })));
 }
 function memEntretiens(): OneOnOne[] {
   // Normalisation à la lecture : les fichiers écrits avant l'introduction du statut n'ont pas le
@@ -285,19 +294,48 @@ export async function getCommercialParEmail(email: string): Promise<Commercial |
   return memCommerciaux().find((c) => c.email.toLowerCase() === e) ?? null;
 }
 
+/**
+ * Fiches ACTIVES rattachées à un manager donné. C'est ce qui définit le périmètre d'un manager
+ * non administrateur : il ne voit rien d'autre. Comparaison insensible à la casse.
+ */
+export async function listCommerciauxParManager(email: string): Promise<Commercial[]> {
+  const e = email.trim().toLowerCase();
+  if (!e) return [];
+  if (USE_DB) {
+    await ensureSchema();
+    const { rows } = await pool().query(
+      'SELECT * FROM commerciaux WHERE lower(manager_email) = $1 AND actif = true ORDER BY nom',
+      [e],
+    );
+    return rows.map(rowToCommercial);
+  }
+  return memCommerciaux()
+    .filter((c) => c.actif && c.managerEmail.toLowerCase() === e)
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+}
+
 export async function upsertCommercial(c: CommercialInput): Promise<Commercial> {
   const now = new Date().toISOString();
   if (USE_DB) {
     await ensureSchema();
     const { rows } = await pool().query(
-      `INSERT INTO commerciaux (id, nom, libelle_boond, email, pole, objectif_annuel, actif)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO commerciaux (id, nom, libelle_boond, email, pole, objectif_annuel, actif, manager_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (id) DO UPDATE SET
          nom = excluded.nom, libelle_boond = excluded.libelle_boond, email = excluded.email,
-         pole = excluded.pole, objectif_annuel = excluded.objectif_annuel,
+         manager_email = excluded.manager_email, pole = excluded.pole, objectif_annuel = excluded.objectif_annuel,
          actif = excluded.actif, updated_at = now()
        RETURNING *`,
-      [c.id, c.nom, c.libelleBoond, c.email.toLowerCase(), c.pole, c.objectifAnnuel, c.actif],
+      [
+        c.id,
+        c.nom,
+        c.libelleBoond,
+        c.email.toLowerCase(),
+        c.pole,
+        c.objectifAnnuel,
+        c.actif,
+        c.managerEmail.toLowerCase(),
+      ],
     );
     return rowToCommercial(rows[0]);
   }
@@ -306,6 +344,7 @@ export async function upsertCommercial(c: CommercialInput): Promise<Commercial> 
   const item: Commercial = {
     ...c,
     email: c.email.toLowerCase(),
+    managerEmail: c.managerEmail.toLowerCase(),
     createdAt: i >= 0 ? list[i].createdAt : now,
     updatedAt: now,
   };

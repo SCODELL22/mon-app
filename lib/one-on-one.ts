@@ -20,6 +20,12 @@ export interface Commercial {
   libelleBoond: string;
   /** Email du compte applicatif — permet au commercial de lire ses propres CR. Vide = pas d'accès. */
   email: string;
+  /**
+   * Email du manager direct (N+1) qui mène les 1:1 de ce commercial. Donne à ce compte l'accès
+   * complet aux entretiens de CE commercial, zone privée comprise — et à aucun autre.
+   * Vide = seuls les administrateurs (MANAGER_EMAILS) le suivent. Cf. lib/access.ts.
+   */
+  managerEmail: string;
   pole: string;
   objectifAnnuel: number; // CA annuel HT visé
   actif: boolean;

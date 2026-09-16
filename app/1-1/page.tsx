@@ -4,7 +4,9 @@ import {
   acces,
   filtrerActionsPourLecteur,
   filtrerPourLecteur,
+  gere,
   peutAccederAuModule,
+  peutVoirCommercial,
 } from '@/lib/access';
 import { listActions, listCommerciaux, listOneOnOnes } from '@/lib/one-on-one-store';
 import { aujourdHui, construireSuivi, isActionOuverte, isEnRetard } from '@/lib/one-on-one';
@@ -24,10 +26,10 @@ export default async function Page() {
     listActions(),
   ]);
 
-  // Cloisonnement : un commercial ne voit que sa propre ligne et ses propres actions.
-  const commerciaux = a.estManager
-    ? tousCommerciaux
-    : tousCommerciaux.filter((c) => c.id === a.commercial?.id);
+  // Cloisonnement : un manager voit les lignes de ses managés (plus la sienne s'il est lui-même
+  // suivi), un commercial uniquement la sienne, un admin toutes.
+  const commerciaux = tousCommerciaux.filter((c) => peutVoirCommercial(a, c.id));
+  const equipe = commerciaux.filter((c) => gere(a, c.id));
   const entretiens = filtrerPourLecteur(tousEntretiens, a);
   // Actions restreintes aux entretiens que le lecteur a le droit de voir : sans ça, un commercial
   // verrait les actions d'un brouillon le concernant.
@@ -40,16 +42,18 @@ export default async function Page() {
   // Seuil d'alerte : un commercial vu il y a plus de 14 jours sort du rythme bimensuel.
   const SEUIL_JOURS = 14;
   const aVoir = suivi.filter(
-    (s) => s.joursDepuisDernier === null || s.joursDepuisDernier > SEUIL_JOURS,
+    (s) =>
+      gere(a, s.commercial.id) &&
+      (s.joursDepuisDernier === null || s.joursDepuisDernier > SEUIL_JOURS),
   );
 
   return (
-    <Shell titre="Suivi des 1:1" estManager={a.estManager}>
+    <Shell titre="Suivi des 1:1" estManager={a.estManager} estAdmin={a.estAdmin}>
       <header style={{ marginBottom: 18 }}>
         <h1 style={S.h1}>Suivi des entretiens</h1>
         <p style={S.sub}>
           {a.estManager
-            ? `${commerciaux.length} commercial${commerciaux.length > 1 ? 'aux' : ''} suivi${commerciaux.length > 1 ? 's' : ''}.`
+            ? `${equipe.length} commercial${equipe.length > 1 ? 'aux' : ''} suivi${equipe.length > 1 ? 's' : ''}${a.estAdmin ? ' (agence)' : ' dans ton équipe'}.`
             : 'Tes comptes rendus d’entretien et les actions qui te concernent.'}
         </p>
       </header>
@@ -59,7 +63,9 @@ export default async function Page() {
         {a.estManager && (
           <Kpi
             label="Brouillons"
-            valeur={String(entretiens.filter((e) => e.statut === 'BROUILLON').length)}
+            valeur={String(
+              entretiens.filter((e) => e.statut === 'BROUILLON' && gere(a, e.commercialId)).length,
+            )}
             accent={C.gm}
             sousTitre="non partagés"
           />
@@ -81,13 +87,13 @@ export default async function Page() {
         )}
       </div>
 
-      {a.estManager && commerciaux.length === 0 && (
+      {a.estAdmin && commerciaux.length === 0 && (
         <Message ton="info">
           Aucun commercial enregistré. Commence par créer les fiches dans{' '}
           <a href="/1-1/commerciaux" style={S.link}>
             Commerciaux
           </a>{' '}
-          — le rattachement au libellé BoondManager s’y fait aussi.
+          — le rattachement au libellé BoondManager et au manager s’y fait aussi.
         </Message>
       )}
 
@@ -143,7 +149,7 @@ export default async function Page() {
                       )}
                     </td>
                     <td style={{ ...S.td, textAlign: 'right' }}>
-                      {a.estManager && (
+                      {gere(a, s.commercial.id) && (
                         <a
                           href={`/1-1/nouveau?commercial=${s.commercial.id}`}
                           style={S.btnGhost}
@@ -181,7 +187,7 @@ export default async function Page() {
                       <a href={`/1-1/entretien/${e.id}`} style={S.link}>
                         {dateFr(e.date)}
                       </a>{' '}
-                      {a.estManager && e.statut === 'BROUILLON' && (
+                      {gere(a, e.commercialId) && e.statut === 'BROUILLON' && (
                         <Badge ton="yellow">brouillon</Badge>
                       )}
                     </td>

@@ -1,6 +1,8 @@
 // Gestion des fiches commerciaux : rattachement au libellé BoondManager et au compte applicatif.
-// Réservé aux managers — le champ email conditionne qui peut lire les comptes rendus.
-import { acces, peutEcrire } from '@/lib/access';
+// Réservé aux administrateurs (MANAGER_EMAILS) : le champ email conditionne qui lit ses propres
+// comptes rendus, le champ manager qui lit et écrit TOUS ceux de la fiche, zone privée comprise.
+import { acces, peutAdministrer } from '@/lib/access';
+import { isAllowedEmail } from '@/lib/auth';
 import { listCommerciaux } from '@/lib/one-on-one-store';
 import { POLES } from '@/lib/config';
 import { listOpportunities } from '@/lib/store';
@@ -13,7 +15,10 @@ const ERREURS: Record<string, string> = {
   nom: 'Le nom est obligatoire.',
   email: 'Adresse email invalide.',
   domaine: 'L’adresse doit appartenir au domaine de l’entreprise.',
-  manager: 'Cette adresse est déjà déclarée comme manager : elle voit déjà tout, inutile de la rattacher.',
+  manager:
+    'Cette adresse est déclarée administrateur (MANAGER_EMAILS) : elle voit déjà tout, inutile de lui créer une fiche.',
+  'manager-email': 'Adresse du manager invalide.',
+  'soi-meme': 'Un commercial ne peut pas être son propre manager.',
   'email-pris': 'Cette adresse est déjà rattachée à un autre commercial.',
   introuvable: 'Fiche introuvable.',
 };
@@ -24,7 +29,7 @@ export default async function Page({
   searchParams: Promise<{ error?: string; ok?: string; edit?: string }>;
 }) {
   const a = await acces();
-  if (!peutEcrire(a)) return <AccesRefuse />;
+  if (!peutAdministrer(a)) return <AccesRefuse />;
 
   const { error, ok, edit } = await searchParams;
   const commerciaux = await listCommerciaux(true);
@@ -36,19 +41,31 @@ export default async function Page({
   const libellesBoond = [...new Set(opps.map((o) => o.commercial).filter(Boolean))].sort();
   const rattaches = new Set(commerciaux.map((c) => c.libelleBoond).filter(Boolean));
   const orphelins = libellesBoond.filter((l) => !rattaches.has(l));
+  // Managers déjà utilisés : proposés à la saisie pour éviter les variantes d'orthographe.
+  const managersConnus = [...new Set(commerciaux.map((c) => c.managerEmail).filter(Boolean))].sort();
+  const sansManager = commerciaux.filter((c) => c.actif && !c.managerEmail).length;
 
   return (
-    <Shell titre="Commerciaux" estManager>
+    <Shell titre="Commerciaux" estManager estAdmin>
       <header style={{ marginBottom: 18 }}>
         <h1 style={S.h1}>Commerciaux suivis</h1>
         <p style={S.sub}>
           Le libellé BoondManager rattache la fiche aux opportunités du pipeline. L’email donne au
-          commercial l’accès en lecture à ses propres comptes rendus — zone privée exclue.
+          commercial l’accès en lecture à ses propres comptes rendus — zone privée exclue. Le
+          manager rattaché mène les 1:1 de la fiche et en lit tout, zone privée comprise ; il ne
+          voit aucune autre fiche. Les administrateurs voient tout.
         </p>
       </header>
 
       {error && <Message ton="erreur">{ERREURS[error] ?? 'Une erreur est survenue.'}</Message>}
       {ok && <Message ton="ok">Fiche enregistrée.</Message>}
+
+      {sansManager > 0 && (
+        <Message ton="info">
+          {sansManager} fiche{sansManager > 1 ? 's' : ''} active{sansManager > 1 ? 's' : ''} sans
+          manager : seuls les administrateurs peuvent en mener les 1:1.
+        </Message>
+      )}
 
       {orphelins.length > 0 && (
         <Message ton="info">
@@ -101,6 +118,22 @@ export default async function Page({
                 style={S.input}
                 placeholder="prenom.nom@ippon.fr — laisser vide pour aucun accès"
               />
+            </label>
+            <label style={S.label}>
+              Manager (N+1)
+              <input
+                type="email"
+                name="managerEmail"
+                defaultValue={enEdition?.managerEmail ?? ''}
+                list="managers-connus"
+                style={S.input}
+                placeholder="prenom.nom@ippon.fr — mène ses 1:1"
+              />
+              <datalist id="managers-connus">
+                {managersConnus.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
             </label>
             <label style={S.label}>
               Pôle
@@ -160,6 +193,7 @@ export default async function Page({
                 <th style={S.th}>Pôle</th>
                 <th style={S.th}>Libellé Boond</th>
                 <th style={S.th}>Accès compte</th>
+                <th style={S.th}>Manager</th>
                 <th style={S.th}>Objectif</th>
                 <th style={S.th}></th>
               </tr>
@@ -183,6 +217,19 @@ export default async function Page({
                   </td>
                   <td style={S.td}>
                     {c.email ? <Badge ton="blue">{c.email}</Badge> : <Badge ton="gray">aucun</Badge>}
+                  </td>
+                  <td style={S.td}>
+                    {c.managerEmail ? (
+                      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                        <Badge ton="blue">{c.managerEmail}</Badge>
+                        {/* Sans place dans ALLOWED_EMAILS, le manager ne peut pas créer son compte. */}
+                        {!isAllowedEmail(c.managerEmail) && (
+                          <Badge ton="yellow">inscription bloquée</Badge>
+                        )}
+                      </span>
+                    ) : (
+                      <Badge ton="gray">admin seul</Badge>
+                    )}
                   </td>
                   <td style={S.td}>{c.objectifAnnuel ? euros(c.objectifAnnuel) : '—'}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>

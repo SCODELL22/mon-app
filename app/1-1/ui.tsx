@@ -185,10 +185,14 @@ export const S = {
 export function Shell({
   titre,
   estManager,
+  estAdmin = false,
   children,
 }: {
   titre: string;
+  /** Peut mener des 1:1 (admin ou manager d'équipe). */
   estManager: boolean;
+  /** Gère les fiches et la sauvegarde complète. */
+  estAdmin?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -210,12 +214,14 @@ export function Shell({
             Actions
           </a>
           {estManager && (
+            <a href="/1-1/nouveau" style={S.navLink}>
+              Nouveau 1:1
+            </a>
+          )}
+          {estAdmin && (
             <>
               <a href="/1-1/commerciaux" style={S.navLink}>
                 Commerciaux
-              </a>
-              <a href="/1-1/nouveau" style={S.navLink}>
-                Nouveau 1:1
               </a>
               <a href="/api/one-on-one/export" style={S.navLink}>
                 Sauvegarde

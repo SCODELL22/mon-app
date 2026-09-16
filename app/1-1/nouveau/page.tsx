@@ -8,7 +8,7 @@
 // Le formulaire est un <form> HTML natif, sans JavaScript client : c'est la convention des
 // formulaires existants (login, signup) et c'est compatible avec la CSP de next.config.ts.
 // Conséquence assumée : le nombre de lignes d'actions vides est fixe (LIGNES_ACTIONS).
-import { acces, peutEcrire } from '@/lib/access';
+import { acces, gere, peutEcrire } from '@/lib/access';
 import { getCommercial, getOneOnOne, listActions, listCommerciaux } from '@/lib/one-on-one-store';
 import { pipelineDuCommercial } from '@/lib/one-on-one-pipeline';
 import { ACTION_STATUTS, actionsParUrgence, aujourdHui, isEnRetard } from '@/lib/one-on-one';
@@ -50,8 +50,13 @@ export default async function Page({
     extrait,
     actions: actionsAjoutees,
   } = await searchParams;
-  const commerciaux = await listCommerciaux();
+  // Seules les fiches dont le lecteur est responsable sont proposées (toutes pour un admin).
+  const commerciaux = (await listCommerciaux()).filter((c) => gere(a, c.id));
   const entretien = id ? await getOneOnOne(id) : null;
+  // Entretien d'une autre équipe, ou fiche hors périmètre passée en paramètre : refus net plutôt
+  // qu'un repli silencieux qui laisserait croire que l'entretien n'existe pas.
+  if (entretien && !gere(a, entretien.commercialId)) return <AccesRefuse />;
+  if (commercialParam && !gere(a, commercialParam)) return <AccesRefuse />;
 
   const commercialId = entretien?.commercialId ?? commercialParam ?? commerciaux[0]?.id ?? '';
   const commercial = commercialId ? await getCommercial(commercialId) : null;
@@ -62,15 +67,22 @@ export default async function Page({
 
   if (commerciaux.length === 0) {
     return (
-      <Shell titre="Nouveau 1:1" estManager>
+      <Shell titre="Nouveau 1:1" estManager estAdmin={a.estAdmin}>
         <h1 style={S.h1}>Nouvel entretien</h1>
-        <Message ton="info">
-          Aucun commercial enregistré. Crée d’abord les fiches dans{' '}
-          <a href="/1-1/commerciaux" style={S.link}>
-            Commerciaux
-          </a>
-          .
-        </Message>
+        {a.estAdmin ? (
+          <Message ton="info">
+            Aucun commercial enregistré. Crée d’abord les fiches dans{' '}
+            <a href="/1-1/commerciaux" style={S.link}>
+              Commerciaux
+            </a>
+            .
+          </Message>
+        ) : (
+          <Message ton="info">
+            Aucun collaborateur actif ne t’est rattaché. Demande à l’administrateur du module de
+            renseigner ton email comme manager sur les fiches concernées.
+          </Message>
+        )}
       </Shell>
     );
   }
@@ -93,7 +105,7 @@ export default async function Page({
   const lignesVides = Math.max(0, LIGNES_ACTIONS - actionsDeCetEntretien.length);
 
   return (
-    <Shell titre={entretien ? 'Modifier le 1:1' : 'Nouveau 1:1'} estManager>
+    <Shell titre={entretien ? 'Modifier le 1:1' : 'Nouveau 1:1'} estManager estAdmin={a.estAdmin}>
       <header style={{ marginBottom: 18 }}>
         <h1 style={S.h1}>{entretien ? 'Modifier l’entretien' : 'Nouvel entretien'}</h1>
         <p style={S.sub}>

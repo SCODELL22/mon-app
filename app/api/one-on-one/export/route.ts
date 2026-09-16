@@ -4,8 +4,9 @@
 // reconstituer depuis BoondManager. Cet export est le filet de sécurité — à télécharger
 // régulièrement, et à conserver hors de l'application.
 //
-// Il contient la ZONE PRIVÉE MANAGER : réservé aux managers, jamais de fallback silencieux.
-import { acces, peutEcrire, refus } from '@/lib/access';
+// Il contient la ZONE PRIVÉE de TOUS les entretiens : réservé aux administrateurs
+// (MANAGER_EMAILS). Un manager d'équipe n'y a pas accès — l'export ignore les périmètres.
+import { acces, peutAdministrer, refus } from '@/lib/access';
 import { exportTout } from '@/lib/one-on-one-store';
 import { aujourdHui } from '@/lib/one-on-one';
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const a = await acces();
   if (a.role === 'AUCUN') return refus('unauthorized');
-  if (!peutEcrire(a)) return refus('forbidden');
+  if (!peutAdministrer(a)) return refus('forbidden');
 
   const data = await exportTout();
   return new Response(JSON.stringify(data, null, 2), {
