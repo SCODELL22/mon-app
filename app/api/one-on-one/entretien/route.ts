@@ -9,24 +9,27 @@ import { horsPerimetre } from '@/lib/one-on-one-formulaire';
 import { redirectTo } from '@/lib/auth';
 import { getCommercial } from '@/lib/one-on-one-store';
 import { enregistrerEntretien } from '@/lib/one-on-one-formulaire';
+import { baseSuivi, espaceDeRequete } from '@/lib/espace';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const a = await acces();
+  const espace = espaceDeRequete(req);
+  const base = baseSuivi(espace);
+  const a = await acces(espace);
   if (a.role === 'AUCUN') return refus('unauthorized');
   if (!peutEcrire(a)) return refus('forbidden');
 
   const form = await req.formData();
 
-  const commercial = await getCommercial(String(form.get('commercialId') ?? '').trim());
-  if (!commercial) return redirectTo('/1-1?error=commercial-inconnu');
+  const commercial = await getCommercial(espace, String(form.get('commercialId') ?? '').trim());
+  if (!commercial) return redirectTo(`${base}?error=commercial-inconnu`);
   // Périmètre : la fiche cible ET, en édition, la fiche d'origine de l'entretien. Sans ce second
   // contrôle, un manager pourrait réécrire l'entretien d'une autre équipe en forgeant son id.
   const denied = await horsPerimetre(a, commercial.id, String(form.get('id') ?? '').trim());
   if (denied) return denied;
 
-  const entretien = await enregistrerEntretien(form, a.email);
+  const entretien = await enregistrerEntretien(espace, form, a.email);
 
-  return redirectTo(`/1-1/entretien/${entretien.id}`);
+  return redirectTo(`${base}/entretien/${entretien.id}`);
 }

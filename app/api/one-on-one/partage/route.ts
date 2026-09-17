@@ -6,16 +6,17 @@
 import { acces, gere, peutEcrire, refus } from '@/lib/access';
 import { redirectTo } from '@/lib/auth';
 import { definirPartage, getOneOnOne } from '@/lib/one-on-one-store';
-import { estModeFrance } from '@/lib/perimetre';
+import { baseSuivi, espaceDeRequete } from '@/lib/espace';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const a = await acces();
+  const espace = espaceDeRequete(req);
+  const a = await acces(espace);
   if (a.role === 'AUCUN') return refus('unauthorized');
   if (!peutEcrire(a)) return refus('forbidden');
-  // Périmètre France : les OTO ne se partagent pas (aucun directeur d'agence n'a d'accès).
-  if (estModeFrance()) return refus('forbidden');
+  // Espace direction : les OTO ne se partagent pas (aucun directeur d'agence n'a d'accès).
+  if (espace === 'direction') return refus('forbidden');
 
   const form = await req.formData();
   const id = String(form.get('id') ?? '').trim();
@@ -23,11 +24,11 @@ export async function POST(req: Request) {
   // successives (double-clic, retour arrière) donnent alors le même résultat.
   const partager = String(form.get('partager') ?? '') === '1';
 
-  const entretien = await getOneOnOne(id);
-  if (!entretien) return redirectTo('/1-1?error=entretien-inconnu');
+  const entretien = await getOneOnOne(espace, id);
+  if (!entretien) return redirectTo(`${baseSuivi(espace)}?error=entretien-inconnu`);
   if (!gere(a, entretien.commercialId)) return refus('forbidden');
 
-  await definirPartage(id, partager);
+  await definirPartage(espace, id, partager);
 
-  return redirectTo(`/1-1/entretien/${id}?${partager ? 'partage=1' : 'retire=1'}`);
+  return redirectTo(`${baseSuivi(espace)}/entretien/${id}?${partager ? 'partage=1' : 'retire=1'}`);
 }

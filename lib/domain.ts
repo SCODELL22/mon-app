@@ -24,7 +24,7 @@ export interface Opportunity {
   probabilite: number; // 0 à 100 (Pondération × 100)
   etape: Etape; // État
   dateCloturePrev: string | null; // Date de clôture, 'YYYY-MM-DD'
-  // Champs ajoutés pour le périmètre France (cf. lib/perimetre.ts). Optionnels : les données
+  // Champs ajoutés pour l'espace direction (cf. lib/espace.ts). Optionnels : les données
   // importées avant leur introduction ne les ont pas.
   agence?: string; // Agence
   dateDemarrage?: string | null; // Date de démarrage, 'YYYY-MM-DD' ; null si « Immédiate » ou vide

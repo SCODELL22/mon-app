@@ -1,25 +1,44 @@
-// Périmètre de l'instance : une AGENCE (usage historique, pilotage par un directeur d'agence) ou
-// la FRANCE (usage direction générale : toutes les agences, OTO des directeurs d'agence).
+// Espaces de l'application. Une même instance héberge deux suivis étanches :
+//   - AGENCE    : le pilotage historique du directeur d'agence (/, /1-1). Rôles définis dans
+//                 lib/access.ts (MANAGER_EMAILS, managers d'équipe, commerciaux).
+//   - DIRECTION : l'outil du directeur général (/france, /oto-da) — pipeline de toutes les
+//                 agences et OTO des directeurs d'agence. Réservé aux emails de DG_EMAILS.
 //
-// Même code, deux déploiements distincts, chacun avec SA base de données. C'est le choix
-// structurant : l'import CSV « remplace tout » et les comptes rendus d'OTO du DG portent sur les
-// directeurs d'agence eux-mêmes. Les mélanger dans une même base ferait (1) écraser l'import
-// d'une agence par l'import France, (2) lire aux administrateurs d'agence les OTO qui les
-// concernent. Une instance par périmètre supprime ces deux risques sans logique de cloisonnement
-// supplémentaire.
+// L'étanchéité repose sur deux règles, à ne jamais contourner :
+//   1. STOCKAGE SÉPARÉ : chaque espace a ses propres tables / fichiers (lib/store.ts,
+//      lib/one-on-one-store.ts). Un identifiant d'un espace ne se résout jamais dans l'autre.
+//   2. DROITS SÉPARÉS : acces(espace) calcule les droits pour CET espace. Être administrateur de
+//      l'espace agence ne donne aucun droit sur l'espace direction, et inversement.
 //
-// Variable : APP_PERIMETRE=france. Toute autre valeur (ou absence) = agence, le comportement
-// historique — une instance d'agence déjà en production n'a rien à changer.
+// Limite assumée (choix du propriétaire de l'application) : qui administre l'hébergement et la
+// base de données peut techniquement lire les deux espaces. L'étanchéité vaut dans l'application.
 import type { Chiffres, ZonePartagee } from './one-on-one';
 
-export type Perimetre = 'agence' | 'france';
+export type Espace = 'agence' | 'direction';
 
-export function perimetre(): Perimetre {
-  return (process.env.APP_PERIMETRE ?? '').trim().toLowerCase() === 'france' ? 'france' : 'agence';
+/** Lecture tolérante d'un paramètre (formulaire, URL) : tout ce qui n'est pas « direction » = agence. */
+export function espaceDe(v: unknown): Espace {
+  return String(v ?? '').trim().toLowerCase() === 'direction' ? 'direction' : 'agence';
 }
 
-export function estModeFrance(): boolean {
-  return perimetre() === 'france';
+/** Espace demandé par une requête API : paramètre d'URL `?espace=`. Défaut : agence. */
+export function espaceDeRequete(req: Request): Espace {
+  return espaceDe(new URL(req.url).searchParams.get('espace'));
+}
+
+/** Suffixe d'URL à ajouter aux appels API d'un espace (vide pour l'agence). */
+export function qsEspace(espace: Espace): string {
+  return espace === 'direction' ? '?espace=direction' : '';
+}
+
+/** Racine des écrans de suivi de l'espace. */
+export function baseSuivi(espace: Espace): string {
+  return espace === 'direction' ? '/oto-da' : '/1-1';
+}
+
+/** Page du pipeline de l'espace. */
+export function basePipeline(espace: Espace): string {
+  return espace === 'direction' ? '/france' : '/';
 }
 
 export interface Rubrique {
@@ -109,9 +128,9 @@ const VOCAB_AGENCE: Vocabulaire = {
 };
 
 // Mêmes champs de stockage que la trame commerciale, rubriques relues pour un directeur
-// d'agence. Réutiliser le stockage évite toute migration de schéma : les deux instances ont
-// des bases distinctes, un même champ n'y est jamais lu avec deux sens différents.
-const VOCAB_FRANCE: Vocabulaire = {
+// d'agence. Les tables de l'espace direction sont distinctes : un même champ n'est jamais lu
+// avec deux sens différents.
+const VOCAB_DIRECTION: Vocabulaire = {
   suivi: 'directeur d’agence',
   suivis: 'directeurs d’agence',
   suiviCourt: 'DA',
@@ -170,6 +189,6 @@ const VOCAB_FRANCE: Vocabulaire = {
     'un entretien individuel (OTO) entre le directeur général et un directeur d’agence',
 };
 
-export function vocabulaire(p: Perimetre = perimetre()): Vocabulaire {
-  return p === 'france' ? VOCAB_FRANCE : VOCAB_AGENCE;
+export function vocabulaire(espace: Espace): Vocabulaire {
+  return espace === 'direction' ? VOCAB_DIRECTION : VOCAB_AGENCE;
 }

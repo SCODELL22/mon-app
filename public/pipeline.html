@@ -46,10 +46,14 @@ body{background:var(--bg);color:var(--deep);font-family:'Open Sans',Arial,sans-s
 .wb{font-size:12px;color:rgba(255,255,255,.55);}
 .btn-g{font-size:12px;color:rgba(255,255,255,.38);background:none;border:1px solid rgba(255,255,255,.1);border-radius:2px;padding:5px 12px;cursor:pointer;}
 .btn-g:hover{background:rgba(255,255,255,.05);color:#fff;}
-/* Périmètre France (APP_PERIMETRE=france) : éléments masqués tant que /api/config n'a pas répondu. */
-.fr-only{display:none!important;}
+/* Espace direction (page servie en /france) : vue France du DG. Espace agence : page servie en /.
+   .dg-only : liens vers l'espace direction, affichés si /api/config confirme un compte DG. */
+.fr-only,.dg-only{display:none!important;}
 body.mode-france .fr-only{display:revert!important;}
 body.mode-france .agence-only{display:none!important;}
+body.est-dg:not(.mode-france) .dg-only{display:revert!important;}
+#acces-dg-refuse{display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--deep);color:#fff;text-align:center;padding:2rem;}
+#acces-dg-refuse.on{display:flex;}
 .agence-sel{font-size:12px;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:2px;padding:4px 8px;max-width:220px;}
 .agence-sel option{color:#000F41;}
 .dt td.num,.dt th.num{text-align:right;}
@@ -201,6 +205,8 @@ select{appearance:auto;}
     <div class="hint-item"><div class="hint-dot"></div>Évolution depuis janvier</div>
   </div>
 </div>
+<!-- ESPACE DIRECTION : compte non autorisé -->
+<div id="acces-dg-refuse"><div><h1 class="drop-title">Accès<br><span>réservé</span></h1><p class="drop-sub">La vue France est réservée à la direction générale.</p><p style="margin-top:1rem"><a class="btn-g" href="/" style="text-decoration:none">Retour au pipeline</a></p></div></div>
 <!-- DASHBOARD -->
 <div id="dashboard">
   <div class="topbar">
@@ -220,7 +226,11 @@ select{appearance:auto;}
       <!-- Suivi des 1:1 : module distinct, rendu côté serveur (app/1-1). Accès restreint aux
            managers et aux commerciaux concernés — le lien est visible de tous, la page refuse
            l'accès aux autres. -->
-      <a class="btn-g" href="/1-1" style="text-decoration:none;line-height:1.6;">Suivi 1:1</a>
+      <a class="btn-g dg-only" href="/france" style="text-decoration:none;line-height:1.6;">Vue France</a>
+      <a class="btn-g dg-only" href="/oto-da" style="text-decoration:none;line-height:1.6;">OTO des DA</a>
+      <a class="btn-g agence-only" id="lien-suivi" href="/1-1" style="text-decoration:none;line-height:1.6;">Suivi 1:1</a>
+      <a class="btn-g fr-only" href="/oto-da" style="text-decoration:none;line-height:1.6;">OTO des DA</a>
+      <a class="btn-g fr-only" href="/" style="text-decoration:none;line-height:1.6;">Pipeline agence</a>
       <button class="btn-g" id="btn-reset">Nouveau CSV</button>
       <button class="btn-g" onclick="logout()">Déconnexion</button>
     </div>
@@ -674,7 +684,12 @@ const ETAT_BD={'Qualification':'bd-blue','Proposition':'bd-yellow','Négociation
 const ENC=["Besoin d'analyse",'Qualification','A valider','Proposition','Négociation'];
 const GAG=['Fermé gagné'];
 const PER=['Fermé perdu','Abandonné'];
-let history=JSON.parse(localStorage.getItem('ippon_v6')||'[]');
+/* Espace servi : /france = direction (DG), sinon agence. Les clés de navigateur sont suffixées
+   pour qu'un même poste ne mélange jamais l'historique Paris et l'historique France. */
+const ESPACE=(location.pathname.replace(/\/+$/,'')==='/france')?'direction':'agence';
+const QS_ESPACE=ESPACE==='direction'?'?espace=direction':'';
+const LS_SFX=ESPACE==='direction'?'_direction':'';
+let history=[];try{history=JSON.parse(localStorage.getItem('ippon_v6'+LS_SFX)||'[]');}catch(e){history=[];}
 function logout(){fetch('/api/auth/logout',{method:'POST'}).then(()=>{location.href='/login';});}
 let CH={};
 /* ══ UTILS ════════════════════════════════════════════════ */
@@ -1817,7 +1832,7 @@ function buildPerformance(){
   if(na&&na.ca!==0)naR=`<tr style="color:var(--gm)"><td style="font-style:italic">Non attribué</td><td></td><td>${fCA(na.ca)}</td><td></td><td>${fCA(na.marge)}</td><td></td></tr>`;
   tf.innerHTML=naR+`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tobj)}</td><td style="color:#004C4C">${fCA(Tca)}</td><td>${Math.round(Tav)}%</td><td>${fCA(Tma)} <span style="font-size:10px;color:var(--gm)">${Tca>0?(Tma/Tca*100).toFixed(1).replace('.',','):0}%</span></td><td>${pfEcart(Tca-Tobj)}</td></tr>`;
 }
-/* ══ PÉRIMÈTRE FRANCE (APP_PERIMETRE=france) ══════════════
+/* ══ ESPACE DIRECTION (page servie en /france) ═════════════
    Filtre agence commun à tous les onglets + onglet « Contrôle agences ».
    Règles de contrôle identiques à lib/controles-crm.ts (utilisé par les OTO) : toute
    modification doit être reportée des deux côtés. */
@@ -1840,8 +1855,9 @@ function renderAll(){
 }
 function populateAgenceSel(){
   const sel=document.getElementById('agence-sel');if(!sel)return;
+  const LS_AG='ippon_agence_sel'+LS_SFX;
   const agences=Array.from(new Set(ALL_ROWS.map(getAgenceRaw))).sort((a,b)=>agenceCourt(a).localeCompare(agenceCourt(b),'fr'));
-  if(!AGENCE_SEL){try{AGENCE_SEL=localStorage.getItem('ippon_agence_sel')||'';}catch(e){}}
+  if(!AGENCE_SEL){try{AGENCE_SEL=localStorage.getItem(LS_AG)||'';}catch(e){}}
   if(AGENCE_SEL&&!agences.includes(AGENCE_SEL))AGENCE_SEL='';
   if(!IS_FRANCE)AGENCE_SEL='';
   sel.innerHTML='';
@@ -1851,7 +1867,7 @@ function populateAgenceSel(){
 }
 document.getElementById('agence-sel').addEventListener('change',e=>{
   AGENCE_SEL=e.target.value;
-  try{localStorage.setItem('ippon_agence_sel',AGENCE_SEL);}catch(err){}
+  try{localStorage.setItem('ippon_agence_sel'+LS_SFX,AGENCE_SEL);}catch(err){}
   closeDrill();renderAll();
 });
 let AG_LISTS={};
@@ -1927,7 +1943,6 @@ function applyPerimetre(cfg){
     const t=document.querySelector('.tb-title');if(t)t.textContent='Pipeline France';
     const m=document.getElementById('evo-view-monthly');if(m)m.style.display='none';
     const w=document.getElementById('evo-view-weekly');if(w)w.style.display='block';
-    const lk=document.querySelector('a[href="/1-1"]');if(lk)lk.textContent='OTO des DA';
     const act=document.querySelector('.tab-btn.active');
     if(act&&act.classList.contains('agence-only'))document.querySelector('.tab-btn[data-tab="encours"]').click();
   }
@@ -1948,10 +1963,10 @@ function loadCsv(text,isAdd,isRestore){
   if(!isRestore){
     if(!isAdd){history=[entry];}
     else{const idx=history.findIndex(h=>h.label===label);if(idx>=0)history[idx]=entry;else history.push(entry);}
-    localStorage.setItem('ippon_v6',JSON.stringify(history));
+    try{localStorage.setItem('ippon_v6'+LS_SFX,JSON.stringify(history));}catch(e){}
   }
   if(!isAdd){
-    if(!isRestore){try{localStorage.setItem('ippon_lastcsv',text);}catch(e){}}
+    if(!isRestore){try{localStorage.setItem('ippon_lastcsv'+LS_SFX,text);}catch(e){}}
     document.getElementById('week-badge').textContent=label;
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
@@ -1982,7 +1997,7 @@ function uploadToServer(file){
   const fd=new FormData();fd.append('file',file);
   const b=document.getElementById('week-badge');
   if(b)b.textContent='enregistrement…';
-  fetch('/api/import',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+  fetch('/api/import'+QS_ESPACE,{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
     if(b)b.textContent=(d&&d.count)?('\u2713 '+d.count+' enregistr\u00e9es sur le serveur'):'';
   }).catch(()=>{if(b)b.textContent='';});
 }
@@ -1994,12 +2009,13 @@ dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.a
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
 fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>{loadCsv(txt,false);uploadToServer(f);});}});
-document.getElementById('btn-reset').addEventListener('click',()=>{localStorage.removeItem('ippon_lastcsv');document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
+document.getElementById('btn-reset').addEventListener('click',()=>{try{localStorage.removeItem('ippon_lastcsv'+LS_SFX);}catch(e){}document.getElementById('dashboard').style.display='none';document.getElementById('drop-screen').style.display='flex';fi.value='';closeDrill();});
 document.getElementById('btn-add-week').addEventListener('click',()=>fiA.click());
 fiA.addEventListener('change',e=>{const f=e.target.files[0];if(f){readSmart(f,txt=>loadCsv(txt,true));}});
-document.getElementById('btn-clear-history').addEventListener('click',()=>{history=[];localStorage.removeItem('ippon_v6');buildEvolution([]);});
+document.getElementById('btn-clear-history').addEventListener('click',()=>{history=[];try{localStorage.removeItem('ippon_v6'+LS_SFX);}catch(e){}buildEvolution([]);});
 /* Auto-chargement du dernier import (sans réécrire l'historique d'évolution). */
-(function(){try{const last=localStorage.getItem('ippon_lastcsv');if(last)loadCsv(last,false,true);}catch(e){}})();
+if(ESPACE==='direction')applyPerimetre({perimetre:'france',directeurs:{}});
+(function(){try{const last=localStorage.getItem('ippon_lastcsv'+LS_SFX);if(last)loadCsv(last,false,true);}catch(e){}})();
 /* ══ HELPERS MOIS ═════════════════════════════════════════ */
 function monthKey(d){if(!d)return null;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function monthLabel(k){if(!k)return'';const[y,m]=k.split('-');const d=new Date(+y,+m-1,1);return d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
@@ -2101,11 +2117,24 @@ if(history.length>0)buildEvolution([]);
 <!-- ══ AUTO-CHARGEMENT DEPUIS L'APP ══ -->
 <script>
 (function(){
-  fetch('/api/config', { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : null)
-    .then(c => { if (c && c.perimetre === 'france') applyPerimetre(c); })
+  fetch('/api/config' + QS_ESPACE, { cache: 'no-store' })
+    .then(r => {
+      if (ESPACE === 'direction' && r.status === 403) {
+        // Compte non DG sur /france : rien ne s'affiche, pas même la zone de dépôt.
+        document.getElementById('drop-screen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('acces-dg-refuse').classList.add('on');
+        return null;
+      }
+      return r.ok ? r.json() : null;
+    })
+    .then(c => {
+      if (!c) return;
+      if (ESPACE === 'direction') applyPerimetre({ perimetre: 'france', directeurs: c.directeurs || {} });
+      else if (c.estDg) document.body.classList.add('est-dg');
+    })
     .catch(() => { /* config indisponible : comportement agence historique */ });
-  fetch('/api/pipeline-data', { cache: 'no-store' })
+  fetch('/api/pipeline-data' + QS_ESPACE, { cache: 'no-store' })
     .then(r => (r.ok && r.status !== 204) ? r.text() : null)
     .then(t => { if (t && t.trim()) { try { loadCsv(t, false); } catch (e) { console.error('Auto-load échoué', e); } } })
     .catch(() => { /* pas de données : on garde l'écran de dépôt */ });

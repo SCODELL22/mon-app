@@ -34,7 +34,7 @@ import {
 import { calculerPipeline } from '../lib/one-on-one-pipeline';
 import { controlesCrm } from '../lib/controles-crm';
 import { consignePour, CONSIGNE } from '../lib/extraction-trame';
-import { perimetre, vocabulaire } from '../lib/perimetre';
+import { baseSuivi, espaceDe, vocabulaire } from '../lib/espace';
 import { horsPerimetre } from '../lib/one-on-one-formulaire';
 import {
   ExtractionIndisponible,
@@ -46,6 +46,10 @@ import {
 import type { Opportunity } from '../lib/domain';
 import {
   definirPartage,
+  exportTout,
+  getCommercial,
+  getOneOnOne,
+  listCommerciaux,
   getCommercialParEmail,
   listActions,
   listOneOnOnes,
@@ -129,7 +133,14 @@ function commercial(p: Partial<Commercial> = {}): Commercial {
  * assertions ci-dessous ciblent des identifiants précis plutôt que des totaux.
  */
 function nettoyer(): void {
-  for (const f of ['commerciaux.json', 'one-on-ones.json', 'one-on-one-actions.json']) {
+  for (const f of [
+    'commerciaux.json',
+    'one-on-ones.json',
+    'one-on-one-actions.json',
+    'direction-fiches.json',
+    'direction-otos.json',
+    'direction-oto-actions.json',
+  ]) {
     try {
       fs.rmSync(`.data/${f}`, { force: true });
     } catch {
@@ -180,6 +191,7 @@ async function main() {
   // « MANAGER » désigne ici l'administrateur (MANAGER_EMAILS), qui voit tout. Le manager
   // d'équipe, au périmètre restreint, est testé dans la section suivante.
   const acces = (role: 'MANAGER' | 'COMMERCIAL' | 'AUCUN', comId = 'com_1'): Acces => ({
+    espace: 'agence',
     role: role === 'MANAGER' ? 'ADMIN' : role,
     email: role === 'MANAGER' ? 'manager@ippon.fr' : 'alex.martin@ippon.fr',
     uid: 'u1',
@@ -247,6 +259,7 @@ async function main() {
 
   // Léa manage com_1 ; elle est elle-même suivie (fiche com_lea) par l'admin.
   const lea: Acces = {
+    espace: 'agence',
     role: 'MANAGER',
     email: 'lea@ippon.fr',
     uid: 'u2',
@@ -335,7 +348,7 @@ async function main() {
   ok(!extractionDisponible(), 'l’extraction est indisponible sans configuration (fail-closed)');
   let aLeve = false;
   try {
-    await extraireTrame('x'.repeat(500));
+    await extraireTrame('agence', 'x'.repeat(500));
   } catch (e) {
     aLeve = e instanceof ExtractionIndisponible;
   }
@@ -414,7 +427,7 @@ async function main() {
   // laisserait croire que le modèle n'a rien trouvé, alors que rien n'a été appelé.
   let leveCourt = false;
   try {
-    await extraireTrame('trop court');
+    await extraireTrame('agence', 'trop court');
   } catch (e) {
     leveCourt = e instanceof ExtractionIndisponible;
   }
@@ -569,30 +582,22 @@ async function main() {
     'sans champ précisé, le rattachement historique par commercial est conservé',
   );
 
-  const envPerimetre = process.env.APP_PERIMETRE;
-  try {
-    delete process.env.APP_PERIMETRE;
-    ok(perimetre() === 'agence', 'APP_PERIMETRE absent -> périmètre agence (historique)');
-    process.env.APP_PERIMETRE = 'n-importe-quoi';
-    ok(perimetre() === 'agence', 'valeur inconnue -> périmètre agence');
-    process.env.APP_PERIMETRE = ' France ';
-    ok(perimetre() === 'france', 'APP_PERIMETRE=France (casse, espaces) -> périmètre France');
-    ok(vocabulaire().rattachement.champ === 'agence', 'en France, rattachement sur la colonne Agence');
-    ok(consignePour('agence') === CONSIGNE, 'la consigne agence est inchangée');
-    ok(
-      consignePour('france').includes('directeur d’agence') &&
-        consignePour('france').includes('RÈGLE IMPÉRATIVE'),
-      'la consigne France vise le DA et garde la règle de confidentialité',
-    );
-  } finally {
-    if (envPerimetre === undefined) delete process.env.APP_PERIMETRE;
-    else process.env.APP_PERIMETRE = envPerimetre;
-  }
+  ok(espaceDe(undefined) === 'agence' && espaceDe('x') === 'agence', 'espace inconnu -> agence');
+  ok(espaceDe(' Direction ') === 'direction', 'espace « direction » reconnu (casse, espaces)');
+  ok(baseSuivi('direction') === '/oto-da' && baseSuivi('agence') === '/1-1', 'racines des écrans');
+  ok(vocabulaire('direction').rattachement.champ === 'agence', 'direction : rattachement par colonne Agence');
+  ok(vocabulaire('agence').rattachement.champ === 'commercial', 'agence : rattachement historique');
+  ok(consignePour('agence') === CONSIGNE, 'la consigne agence est inchangée');
+  ok(
+    consignePour('direction').includes('directeur d’agence') &&
+      consignePour('direction').includes('RÈGLE IMPÉRATIVE'),
+    'la consigne direction vise le DA et garde la règle de confidentialité',
+  );
 
   // ============================================================ STOCKAGE
   console.log('\n--- Couche de stockage (backend fichier) ---');
 
-  const c = await upsertCommercial({
+  const c = await upsertCommercial('agence', {
     id: 'com_test',
     nom: 'Test Commercial',
     libelleBoond: 'Test COMMERCIAL',
@@ -604,14 +609,14 @@ async function main() {
   });
   ok(c.email === 'test.commercial@ippon.fr', "l'email est normalisé en minuscules");
 
-  const parEmail = await getCommercialParEmail('TEST.COMMERCIAL@IPPON.FR');
+  const parEmail = await getCommercialParEmail('agence', 'TEST.COMMERCIAL@IPPON.FR');
   ok(parEmail?.id === 'com_test', 'recherche par email insensible à la casse');
-  ok((await getCommercialParEmail('')) === null, 'email vide -> aucun commercial (pas de match large)');
-  ok((await getCommercialParEmail('inconnu@ippon.fr')) === null, 'email inconnu -> null');
+  ok((await getCommercialParEmail('agence', '')) === null, 'email vide -> aucun commercial (pas de match large)');
+  ok((await getCommercialParEmail('agence', 'inconnu@ippon.fr')) === null, 'email inconnu -> null');
   ok(c.managerEmail === 'chef.equipe@ippon.fr', "l'email du manager est normalisé en minuscules");
 
   // Calcul des droits de bout en bout, sur le stockage réel.
-  await upsertCommercial({
+  await upsertCommercial('agence', {
     id: 'com_inactif',
     nom: 'Parti',
     libelleBoond: '',
@@ -621,7 +626,7 @@ async function main() {
     objectifAnnuel: 0,
     actif: false,
   });
-  await upsertCommercial({
+  await upsertCommercial('agence', {
     id: 'com_self',
     nom: 'Auto-rattaché',
     libelleBoond: '',
@@ -634,7 +639,7 @@ async function main() {
   const envAvant = process.env.MANAGER_EMAILS;
   process.env.MANAGER_EMAILS = 'direction@ippon.fr';
   try {
-    const chef = await accesPourEmail('CHEF.EQUIPE@ippon.fr', 'u');
+    const chef = await accesPourEmail('agence', 'CHEF.EQUIPE@ippon.fr', 'u');
     ok(chef.role === 'MANAGER', 'manager rattaché -> rôle MANAGER');
     ok(
       chef.managesIds.join() === 'com_test',
@@ -642,45 +647,52 @@ async function main() {
     );
     ok(!chef.estAdmin, 'un manager d’équipe n’est pas admin');
 
-    const auto = await accesPourEmail('auto@ippon.fr', 'u');
+    const auto = await accesPourEmail('agence', 'auto@ippon.fr', 'u');
     ok(auto.managesIds.length === 0, 'être son propre manager ne donne aucun périmètre');
     ok(auto.role === 'COMMERCIAL', '… il reste simple commercial sur sa fiche');
 
-    const dir = await accesPourEmail('direction@ippon.fr', 'u');
+    const dir = await accesPourEmail('agence', 'direction@ippon.fr', 'u');
     ok(dir.role === 'ADMIN' && gere(dir, 'com_test'), 'MANAGER_EMAILS -> admin, gère tout');
 
-    const commercialSimple = await accesPourEmail('test.commercial@ippon.fr', 'u');
+    const commercialSimple = await accesPourEmail('agence', 'test.commercial@ippon.fr', 'u');
     ok(
       commercialSimple.role === 'COMMERCIAL' && !peutEcrire(commercialSimple),
       'le commercial suivi reste en lecture seule',
     );
 
-    // Périmètre France : seul l'admin (le DG) entre, quelles que soient les fiches.
-    const envP = process.env.APP_PERIMETRE;
-    process.env.APP_PERIMETRE = 'france';
+    // Espace direction : DG_EMAILS seulement. Les rôles de l'agence n'y donnent rien.
+    const envDg = process.env.DG_EMAILS;
+    process.env.DG_EMAILS = 'dg@ippon.fr';
     try {
-      const chefFr = await accesPourEmail('chef.equipe@ippon.fr', 'u');
-      ok(chefFr.role === 'AUCUN' && !gere(chefFr, 'com_test'), 'France : un manager de fiche n’a aucun accès');
-      const titulaireFr = await accesPourEmail('test.commercial@ippon.fr', 'u');
+      const adminAgenceEnDirection = await accesPourEmail('direction', 'direction@ippon.fr', 'u');
       ok(
-        titulaireFr.role === 'AUCUN' && !peutVoirCommercial(titulaireFr, 'com_test'),
-        'France : le titulaire d’une fiche (un DA) ne voit pas sa propre fiche',
+        adminAgenceEnDirection.role === 'AUCUN' && !gere(adminAgenceEnDirection, 'da_1'),
+        'direction : l’admin de l’agence (MANAGER_EMAILS) n’a AUCUN accès',
       );
-      const dgFr = await accesPourEmail('direction@ippon.fr', 'u');
-      ok(dgFr.estAdmin && gere(dgFr, 'com_test'), 'France : l’admin (DG) garde l’accès complet');
+      const chefDir = await accesPourEmail('direction', 'chef.equipe@ippon.fr', 'u');
+      ok(chefDir.role === 'AUCUN', 'direction : un manager de fiche agence n’a aucun accès');
+      const titulaireDir = await accesPourEmail('direction', 'test.commercial@ippon.fr', 'u');
+      ok(titulaireDir.role === 'AUCUN', 'direction : un titulaire de fiche n’a aucun accès');
+      const dg = await accesPourEmail('direction', 'DG@ippon.fr', 'u');
+      ok(dg.estAdmin && dg.espace === 'direction' && gere(dg, 'da_1'), 'direction : le DG est admin');
+      const dgEnAgence = await accesPourEmail('agence', 'dg@ippon.fr', 'u');
+      ok(dgEnAgence.role === 'AUCUN', 'agence : le DG n’a aucun droit sur les 1:1 de l’agence');
+      delete process.env.DG_EMAILS;
+      const sansListe = await accesPourEmail('direction', 'dg@ippon.fr', 'u');
+      ok(sansListe.role === 'AUCUN', 'DG_EMAILS absent -> espace direction fermé (fail-closed)');
     } finally {
-      if (envP === undefined) delete process.env.APP_PERIMETRE;
-      else process.env.APP_PERIMETRE = envP;
+      if (envDg === undefined) delete process.env.DG_EMAILS;
+      else process.env.DG_EMAILS = envDg;
     }
 
-    const inconnu = await accesPourEmail('personne@ippon.fr', 'u');
+    const inconnu = await accesPourEmail('agence', 'personne@ippon.fr', 'u');
     ok(inconnu.role === 'AUCUN', 'compte sans fiche ni équipe -> aucun accès');
   } finally {
     if (envAvant === undefined) delete process.env.MANAGER_EMAILS;
     else process.env.MANAGER_EMAILS = envAvant;
   }
 
-  const enregistre = await upsertOneOnOne({
+  const enregistre = await upsertOneOnOne('agence', {
     id: 'o3_test',
     commercialId: 'com_test',
     date: '2026-07-28',
@@ -702,24 +714,24 @@ async function main() {
   });
   ok(enregistre.id === 'o3_test', 'entretien enregistré');
   ok(enregistre.prive?.moral === 'secret', 'zone privée persistée pour le manager');
-  const relu = (await listOneOnOnes('com_test')).find((x) => x.id === 'o3_test');
+  const relu = (await listOneOnOnes('agence', 'com_test')).find((x) => x.id === 'o3_test');
   ok(relu?.partage.pointsCles === 'décision', 'entretien relu depuis le stockage');
   ok(
     enregistre.statut === 'BROUILLON' && enregistre.partageLe === null,
     'un entretien naît en brouillon, sans date de partage',
   );
 
-  const publie = await definirPartage('o3_test', true);
+  const publie = await definirPartage('agence', 'o3_test', true);
   ok(publie?.statut === 'PARTAGE', 'definirPartage(true) passe en partagé');
   ok(publie?.partageLe !== null, 'la date de partage est posée automatiquement');
 
-  const rendu = await definirPartage('o3_test', false);
+  const rendu = await definirPartage('agence', 'o3_test', false);
   ok(rendu?.statut === 'BROUILLON', 'definirPartage(false) repasse en brouillon');
   ok(rendu?.partageLe === null, 'le retour en brouillon efface la date de partage');
 
-  ok((await definirPartage('inexistant', true)) === null, 'partage d’un entretien inconnu -> null');
+  ok((await definirPartage('agence', 'inexistant', true)) === null, 'partage d’un entretien inconnu -> null');
 
-  const a1 = await upsertAction({
+  const a1 = await upsertAction('agence', {
     id: 'act_test',
     oneOnOneId: 'o3_test',
     commercialId: 'com_test',
@@ -730,20 +742,20 @@ async function main() {
   });
   ok(a1.closedAt === null, 'action ouverte : pas de date de clôture');
 
-  const a2 = await upsertAction({ ...a1, statut: 'FAITE' });
+  const a2 = await upsertAction('agence', { ...a1, statut: 'FAITE' });
   ok(a2.closedAt !== null, 'passage à FAITE : date de clôture posée automatiquement');
 
-  const a3 = await upsertAction({ ...a2, statut: 'OUVERTE' });
+  const a3 = await upsertAction('agence', { ...a2, statut: 'OUVERTE' });
   ok(a3.closedAt === null, 'réouverture : la date de clôture est effacée');
 
-  ok((await listActions({ commercialId: 'com_test' })).length === 1, 'action relue par commercial');
-  ok((await listActions({ oneOnOneId: 'inconnu' })).length === 0, 'filtre par entretien inconnu -> vide');
+  ok((await listActions('agence', { commercialId: 'com_test' })).length === 1, 'action relue par commercial');
+  ok((await listActions('agence', { oneOnOneId: 'inconnu' })).length === 0, 'filtre par entretien inconnu -> vide');
 
   ok(typeof aujourdHui() === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(aujourdHui()), 'aujourdHui() au format ISO');
 
   // Garde des routes d'écriture : la fiche cible ET l'entretien d'origine doivent être gérés.
-  await upsertOneOnOne({ ...enregistre, id: 'o3_autre', commercialId: 'com_self' });
-  const chefSeul = await accesPourEmail('chef.equipe@ippon.fr', 'u');
+  await upsertOneOnOne('agence', { ...enregistre, id: 'o3_autre', commercialId: 'com_self' });
+  const chefSeul = await accesPourEmail('agence', 'chef.equipe@ippon.fr', 'u');
   ok((await horsPerimetre(chefSeul, 'com_test', '')) === null, 'écriture autorisée sur son managé');
   ok(
     (await horsPerimetre(chefSeul, 'com_test', 'o3_test')) === null,
@@ -758,10 +770,80 @@ async function main() {
     'réécriture refusée d’un entretien d’une autre équipe, même en ciblant son managé',
   );
 
+  // ============================================================ ÉTANCHÉITÉ DES ESPACES
+  console.log('\n--- Étanchéité agence / direction (stockage) ---');
+  await upsertCommercial('direction', {
+    id: 'da_1',
+    nom: 'Julie MARTIN',
+    libelleBoond: 'FRA - Ippon Technologies - Lyon',
+    email: '',
+    managerEmail: '',
+    pole: '',
+    objectifAnnuel: 3000000,
+    actif: true,
+  });
+  await upsertOneOnOne('direction', {
+    ...enregistre,
+    id: 'oto_1',
+    commercialId: 'da_1',
+    prive: { moral: 'note DG confidentielle', humeur: 3, notesRh: '' },
+  });
+  await upsertAction('direction', { ...a1, id: 'act_da', oneOnOneId: 'oto_1', commercialId: 'da_1' });
+  ok(
+    !(await listCommerciaux('agence', true)).some((x) => x.id === 'da_1'),
+    'une fiche DA n’apparaît pas dans les fiches de l’agence',
+  );
+  ok(
+    !(await listOneOnOnes('agence')).some((x) => x.id === 'oto_1'),
+    'un OTO n’apparaît pas dans les entretiens de l’agence',
+  );
+  ok((await getOneOnOne('agence', 'oto_1')) === null, 'id d’OTO introuvable côté agence');
+  ok((await getCommercial('agence', 'da_1')) === null, 'id de fiche DA introuvable côté agence');
+  ok(
+    !(await listActions('agence')).some((x) => x.id === 'act_da'),
+    'une action d’OTO n’apparaît pas côté agence',
+  );
+  ok(
+    !JSON.stringify(await exportTout('agence')).includes('note DG confidentielle'),
+    'la sauvegarde de l’agence ne contient rien de la direction',
+  );
+  ok(
+    JSON.stringify(await exportTout('direction')).includes('note DG confidentielle'),
+    'la sauvegarde de la direction contient ses OTO',
+  );
+  ok((await getOneOnOne('direction', 'o3_test')) === null, 'id d’entretien agence introuvable côté direction');
+  ok((await getCommercial('direction', 'com_test')) === null, 'fiche agence introuvable côté direction');
+  ok(
+    (await listOneOnOnes('direction')).every((x) => x.commercialId === 'da_1'),
+    'la direction ne voit que ses OTO',
+  );
+  const dgAcces: Acces = {
+    espace: 'direction',
+    role: 'ADMIN',
+    email: 'dg@ippon.fr',
+    uid: 'u',
+    commercial: null,
+    estAdmin: true,
+    managesIds: [],
+    estManager: true,
+  };
+  ok(
+    (await horsPerimetre(dgAcces, 'da_1', 'o3_test')) === null &&
+      (await getOneOnOne('direction', 'o3_test')) === null,
+    'un id d’entretien agence forgé côté direction ne résout rien',
+  );
+
   // Nettoyage des fichiers créés par les tests (même convention que scripts/test-store.ts).
   // Toléré s'il échoue : sur certains montages (conteneur, volume monté en lecture seule) la
   // suppression est refusée. Ce n'est pas un échec de test — .data/ est ignoré par git.
-  for (const f of ['commerciaux.json', 'one-on-ones.json', 'one-on-one-actions.json']) {
+  for (const f of [
+    'commerciaux.json',
+    'one-on-ones.json',
+    'one-on-one-actions.json',
+    'direction-fiches.json',
+    'direction-otos.json',
+    'direction-oto-actions.json',
+  ]) {
     try {
       fs.rmSync(`.data/${f}`, { force: true });
     } catch {

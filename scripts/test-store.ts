@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { listOpportunities, getOpportunity, replaceAll } from '../lib/store';
+import { listOpportunities, getOpportunity, replaceAll, saveRawCsv, getRawCsv } from '../lib/store';
 import { OpportunityInput } from '../lib/domain';
 
 async function main() {
@@ -12,23 +12,44 @@ async function main() {
     { id: 'A3', nom: 'Opp 3', client: 'C3', pole: 'Cloud', commercial: 'X', secteur: 'Banque', montant: 50000, probabilite: 0, etape: 'ABANDONNE', dateCloturePrev: null, notes: '' },
   ];
 
-  const n = await replaceAll(items);
+  const n = await replaceAll('agence', items);
   ok(n === 3, 'replaceAll renvoie 3');
-  ok((await listOpportunities()).length === 3, 'liste = 3 après import');
+  ok((await listOpportunities('agence')).length === 3, 'liste = 3 après import');
 
   // remplace tout : un nouvel import écrase
-  await replaceAll([items[0]]);
-  ok((await listOpportunities()).length === 1, 'remplace tout (1 après ré-import)');
+  await replaceAll('agence', [items[0]]);
+  ok((await listOpportunities('agence')).length === 1, 'remplace tout (1 après ré-import)');
 
-  await replaceAll(items);
-  const got = await getOpportunity('A2');
+  await replaceAll('agence', items);
+  const got = await getOpportunity('agence', 'A2');
   ok(got?.etape === 'GAGNE' && got?.montant === 200000, 'getOpportunity A2 correct');
 
-  const f = await listOpportunities({ secteur: 'Banque' });
+  const f = await listOpportunities('agence', { secteur: 'Banque' });
   ok(f.length === 2 && f.every((o) => o.secteur === 'Banque'), 'filtre secteur=Banque -> 2');
 
-  // nettoyage du fichier de données local créé par les tests
-  fs.rmSync('.data/opportunities.json', { force: true });
+  // Imports séparés par espace : l'import France du DG n'écrase pas celui de l'agence.
+  await replaceAll('direction', [items[0], items[1]]);
+  ok((await listOpportunities('agence')).length === 3, 'import direction : l’import agence est intact');
+  ok((await listOpportunities('direction')).length === 2, 'import direction lu séparément');
+  await replaceAll('agence', [items[2]]);
+  ok((await listOpportunities('direction')).length === 2, 'import agence : l’import direction est intact');
+  ok((await getOpportunity('agence', 'A1')) === null, 'un id de l’import direction ne se lit pas côté agence');
+  // Le CSV brut de l'agence n'est pas réécrit ici : sur un poste de dev, c'est un vrai export.
+  const csvAgenceAvant = await getRawCsv('agence');
+  await saveRawCsv('direction', 'csv-france');
+  ok(
+    (await getRawCsv('agence')) === csvAgenceAvant && (await getRawCsv('direction')) === 'csv-france',
+    'CSV brut direction séparé, CSV brut agence intact',
+  );
+
+  // nettoyage des fichiers de données locaux créés par les tests
+  for (const f of ['opportunities.json', 'direction-opportunities.json', 'direction-raw.csv']) {
+    try {
+      fs.rmSync(`.data/${f}`, { force: true });
+    } catch {
+      /* montage en lecture seule : sans conséquence */
+    }
+  }
 
   console.log(fail === 0 ? '\n✅ STORE OK' : `\n❌ ${fail} échec(s)`);
   process.exit(fail === 0 ? 0 : 1);

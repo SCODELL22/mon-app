@@ -27,7 +27,7 @@
 // rendu lu par le commercial. C'est le mode d'échec normal, pas un cas limite.
 import type { ZonePartagee } from './one-on-one';
 import { canalActif, genererJson } from './vertex';
-import { perimetre, vocabulaire, type Perimetre } from './perimetre';
+import { vocabulaire, type Espace } from './espace';
 
 const RUBRIQUES: (keyof ZonePartagee)[] = [
   'pipelineCommentaire',
@@ -109,12 +109,12 @@ N'invente jamais un chiffre, un nom de client ou une échéance qui n'apparaît 
 transcription. Laisse une rubrique vide plutôt que de la combler.`;
 
 /**
- * Consigne selon le périmètre. Le périmètre agence garde mot pour mot la consigne historique
+ * Consigne selon l'espace. L'espace agence garde mot pour mot la consigne historique
  * (CONSIGNE) : l'instance d'agence en production ne doit voir aucun changement de comportement.
  */
-export function consignePour(p: Perimetre): string {
-  if (p !== 'france') return CONSIGNE;
-  const v = vocabulaire(p);
+export function consignePour(espace: Espace): string {
+  if (espace !== 'direction') return CONSIGNE;
+  const v = vocabulaire(espace);
   const rubriques = RUBRIQUES.map((cle) => `- ${cle} : ${v.rubriques[cle].description}`).join('\n');
   const porteurs = 'COMMERCIAL = le directeur d’agence, MANAGER = le directeur général';
   return `Tu analyses la transcription d'${v.contexteExtraction}.
@@ -151,8 +151,8 @@ transcription. Laisse une rubrique vide plutôt que de la combler.`;
  * fiable qu'une consigne en langage naturel — on ne compte pas sur son obéissance, on ne lui
  * laisse pas d'endroit où écrire.
  */
-export function schemaPour(p: Perimetre) {
-  const v = vocabulaire(p);
+export function schemaPour(espace: Espace) {
+  const v = vocabulaire(espace);
   const props: Record<string, unknown> = {};
   for (const cle of RUBRIQUES) {
     props[cle] = { type: 'string', description: v.rubriques[cle].description };
@@ -227,7 +227,10 @@ export function validerReponse(brut: unknown): TrameExtraite {
   return { partage, actions };
 }
 
-export async function extraireTrame(transcription: string): Promise<TrameExtraite> {
+export async function extraireTrame(
+  espace: Espace,
+  transcription: string,
+): Promise<TrameExtraite> {
   if (!fournisseurConfigure()) throw new ExtractionIndisponible();
 
   // Garde de coût et de bon sens : une transcription vide ou minuscule ne justifie pas un appel.
@@ -239,8 +242,7 @@ export async function extraireTrame(transcription: string): Promise<TrameExtrait
   // contexte. Un 1:1 d'une heure tient largement en dessous.
   const contenu = transcription.slice(0, 200_000);
 
-  const p = perimetre();
-  const brut = await genererJson(consignePour(p), contenu, schemaPour(p));
+  const brut = await genererJson(consignePour(espace), contenu, schemaPour(espace));
   return validerReponse(brut);
 }
 

@@ -16,6 +16,7 @@ import {
 import { nettoyerTranscription } from './extraction-trame';
 import { getOneOnOne, listActions, upsertAction, upsertOneOnOne } from './one-on-one-store';
 import { gere, refus, type Acces } from './access';
+import type { Espace } from './espace';
 
 const STATUTS_VALIDES: ActionStatut[] = ['OUVERTE', 'EN_COURS', 'FAITE', 'ABANDONNEE'];
 
@@ -46,7 +47,8 @@ export async function horsPerimetre(
 ): Promise<Response | null> {
   if (!gere(a, commercialIdCible)) return refus('forbidden');
   if (entretienId) {
-    const existant = await getOneOnOne(entretienId);
+    // Lecture dans l'espace des droits calculés : un id d'un autre espace ne s'y résout pas.
+    const existant = await getOneOnOne(a.espace, entretienId);
     if (existant && !gere(a, existant.commercialId)) return refus('forbidden');
   }
   return null;
@@ -60,12 +62,13 @@ export async function horsPerimetre(
  * Réécrire ce champ ferait passer pour sien un entretien mené par un autre manager.
  */
 export async function enregistrerEntretien(
+  espace: Espace,
   form: FormData,
   emailAuteur: string,
 ): Promise<OneOnOne> {
   const id = texte(form, 'id');
   const commercialId = texte(form, 'commercialId');
-  const existant = id ? await getOneOnOne(id) : null;
+  const existant = id ? await getOneOnOne(espace, id) : null;
   const entretienId = existant?.id ?? nouvelId('o3');
 
   const humeurBrute = Number(texte(form, 'humeur'));
@@ -106,7 +109,7 @@ export async function enregistrerEntretien(
     transcription: nettoyerTranscription(texte(form, 'transcription')),
   };
 
-  const enregistre = await upsertOneOnOne(entree);
+  const enregistre = await upsertOneOnOne(espace, entree);
 
   // --- Actions décidées pendant la séance -----------------------------------
   // Champs répétés : action_libelle / action_porteur / action_echeance / action_id / action_statut.
@@ -119,7 +122,7 @@ export async function enregistrerEntretien(
   // Un identifiant d'action n'est repris que s'il appartient déjà à CET entretien. Sinon, un
   // formulaire forgé pourrait écraser l'action d'un autre entretien (autre équipe comprise).
   const idsConnus = new Set(
-    existant ? (await listActions({ oneOnOneId: entretienId })).map((x) => x.id) : [],
+    existant ? (await listActions(espace, { oneOnOneId: entretienId })).map((x) => x.id) : [],
   );
 
   for (let i = 0; i < libelles.length; i++) {
@@ -128,7 +131,7 @@ export async function enregistrerEntretien(
     const statut = STATUTS_VALIDES.includes(statuts[i] as ActionStatut)
       ? (statuts[i] as ActionStatut)
       : 'OUVERTE';
-    await upsertAction({
+    await upsertAction(espace, {
       id: ids[i] && idsConnus.has(ids[i]) ? ids[i] : nouvelId('act'),
       oneOnOneId: entretienId,
       commercialId,
@@ -143,7 +146,7 @@ export async function enregistrerEntretien(
   // --- Report des actions de la séance précédente ---------------------------
   // Le formulaire liste les actions encore ouvertes des entretiens antérieurs, avec un sélecteur
   // de statut nommé `report_<idAction>`. On ne touche qu'à celles dont le statut a changé.
-  const anciennes = await listActions({ commercialId });
+  const anciennes = await listActions(espace, { commercialId });
   for (const act of anciennes) {
     if (act.oneOnOneId === entretienId) continue; // déjà traitée au-dessus
     const nouveau = form.get(`report_${act.id}`);
@@ -151,7 +154,7 @@ export async function enregistrerEntretien(
     const statut = String(nouveau);
     if (!STATUTS_VALIDES.includes(statut as ActionStatut)) continue;
     if (statut === act.statut) continue;
-    await upsertAction({ ...act, statut: statut as ActionStatut });
+    await upsertAction(espace, { ...act, statut: statut as ActionStatut });
   }
 
   return enregistre;

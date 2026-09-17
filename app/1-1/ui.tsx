@@ -5,7 +5,7 @@
 // app/login/page.tsx et app/signup/page.tsx. Rester cohérent évite d'avoir deux systèmes de
 // style dans la même application.
 import type { CSSProperties, ReactNode } from 'react';
-import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+import { basePipeline, baseSuivi, qsEspace, vocabulaire, type Espace } from '@/lib/espace';
 
 /** Première lettre en majuscule (« commerciaux » -> « Commerciaux »). */
 export function majuscule(s: string): string {
@@ -189,11 +189,13 @@ export const S = {
 // ---------------------------------------------------------------- Composants
 
 export function Shell({
+  espace,
   titre,
   estManager,
   estAdmin = false,
   children,
 }: {
+  espace: Espace;
   titre: string;
   /** Peut mener des 1:1 (admin ou manager d'équipe). */
   estManager: boolean;
@@ -201,42 +203,43 @@ export function Shell({
   estAdmin?: boolean;
   children: ReactNode;
 }) {
-  const v = vocabulaire();
+  const v = vocabulaire(espace);
+  const base = baseSuivi(espace);
   return (
     <div style={S.page}>
       <link href={FONT_LINK} rel="stylesheet" />
       <div style={S.topbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/" style={S.wm}>
+          <a href={basePipeline(espace)} style={S.wm}>
             ippon
           </a>
           <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,.1)' }} />
           <span style={S.tbTitle}>{titre}</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <a href="/1-1" style={S.navLink}>
+          <a href={base} style={S.navLink}>
             Tableau de bord
           </a>
-          <a href="/1-1/actions" style={S.navLink}>
+          <a href={`${base}/actions`} style={S.navLink}>
             Actions
           </a>
           {estManager && (
-            <a href="/1-1/nouveau" style={S.navLink}>
+            <a href={`${base}/nouveau`} style={S.navLink}>
               Nouveau {v.entretien}
             </a>
           )}
           {estAdmin && (
             <>
-              <a href="/1-1/commerciaux" style={S.navLink}>
+              <a href={`${base}/commerciaux`} style={S.navLink}>
                 {majuscule(v.suivis)}
               </a>
-              <a href="/api/one-on-one/export" style={S.navLink}>
+              <a href={`/api/one-on-one/export${qsEspace(espace)}`} style={S.navLink}>
                 Sauvegarde
               </a>
             </>
           )}
-          <a href="/" style={S.navLink}>
-            Pipeline
+          <a href={basePipeline(espace)} style={S.navLink}>
+            {espace === 'direction' ? 'Pipeline France' : 'Pipeline'}
           </a>
         </nav>
       </div>
@@ -357,8 +360,8 @@ export function Badge({
  * Repère visuel volontairement voyant : le risque n'est pas technique mais humain — écrire une
  * note sensible dans le mauvais champ.
  */
-export function BandeauPrive({ children }: { children: ReactNode }) {
-  const v = vocabulaire();
+export function BandeauPrive({ espace, children }: { espace: Espace; children: ReactNode }) {
+  const v = vocabulaire(espace);
   return (
     <section
       style={{
@@ -383,7 +386,7 @@ export function BandeauPrive({ children }: { children: ReactNode }) {
         Zone {v.manager} — privée
       </h2>
       <p style={{ fontSize: 12, color: C.gd, marginBottom: 14 }}>
-        {estModeFrance()
+        {espace === 'direction'
           ? 'Notes personnelles du DG. Ce bloc n’est jamais transmis au directeur d’agence.'
           : 'Visible uniquement par les managers. Ce bloc n’est jamais transmis au commercial, ni à l’écran ni dans le compte rendu imprimé.'}
       </p>
@@ -406,14 +409,14 @@ export function Message({ ton, children }: { ton: 'erreur' | 'info' | 'ok'; chil
 }
 
 /** Écran affiché quand l'utilisateur n'a aucun droit sur le module. Ne divulgue rien du contenu. */
-export function AccesRefuse() {
+export function AccesRefuse({ espace }: { espace: Espace }) {
   return (
     <div style={{ ...S.page, display: 'grid', placeItems: 'center', padding: '2rem' }}>
       <link href={FONT_LINK} rel="stylesheet" />
       <div style={{ ...S.card, maxWidth: 460, textAlign: 'center' }}>
         <h1 style={{ ...S.h1, fontSize: '1.5rem' }}>Accès non autorisé</h1>
         <p style={{ ...S.sub, marginBottom: 16 }}>
-          {estModeFrance()
+          {espace === 'direction'
             ? 'Les OTO des directeurs d’agence sont réservés à la direction générale.'
             : 'Le suivi des entretiens individuels est réservé aux managers et aux commerciaux concernés. Si tu penses que c’est une erreur, demande à ton manager de rattacher ton adresse à ta fiche.'}
         </p>

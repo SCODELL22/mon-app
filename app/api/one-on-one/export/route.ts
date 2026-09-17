@@ -9,19 +9,22 @@
 import { acces, peutAdministrer, refus } from '@/lib/access';
 import { exportTout } from '@/lib/one-on-one-store';
 import { aujourdHui } from '@/lib/one-on-one';
+import { espaceDeRequete } from '@/lib/espace';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const a = await acces();
+export async function GET(req: Request) {
+  // Espace direction : administrateurs = DG_EMAILS uniquement (cf. lib/access.ts).
+  const espace = espaceDeRequete(req);
+  const a = await acces(espace);
   if (a.role === 'AUCUN') return refus('unauthorized');
   if (!peutAdministrer(a)) return refus('forbidden');
 
-  const data = await exportTout();
+  const data = await exportTout(espace);
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="suivi-1-1-${aujourdHui()}.json"`,
+      'Content-Disposition': `attachment; filename="${espace === 'direction' ? 'oto-da' : 'suivi-1-1'}-${aujourdHui()}.json"`,
       'Cache-Control': 'no-store',
     },
   });

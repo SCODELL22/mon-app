@@ -22,20 +22,61 @@ import {
   CHIFFRES_VIDES,
   ZONE_PARTAGEE_VIDE,
 } from './one-on-one';
+import type { Espace } from './espace';
 
 const USE_DB = !!process.env.DATABASE_URL;
 const DIR = path.join(process.cwd(), '.data');
-const F_COMMERCIAUX = path.join(DIR, 'commerciaux.json');
-const F_ENTRETIENS = path.join(DIR, 'one-on-ones.json');
-const F_ACTIONS = path.join(DIR, 'one-on-one-actions.json');
+
+// Chaque espace (lib/espace.ts) a ses propres tables et fichiers. C'est la première barrière
+// d'étanchéité : un identifiant de l'espace direction ne se résout jamais dans l'espace agence.
+// Les noms de l'espace agence sont ceux d'origine — ne pas les renommer (base en production).
+interface Cibles {
+  tCommerciaux: string;
+  /** Nom d'index historique conservé pour l'espace agence. */
+  iActions: string;
+  tEntretiens: string;
+  tActions: string;
+  fCommerciaux: string;
+  fEntretiens: string;
+  fActions: string;
+}
+const CIBLES: Record<Espace, Cibles> = {
+  agence: {
+    tCommerciaux: 'commerciaux',
+    iActions: 'actions_commercial_idx',
+    tEntretiens: 'one_on_ones',
+    tActions: 'one_on_one_actions',
+    fCommerciaux: path.join(DIR, 'commerciaux.json'),
+    fEntretiens: path.join(DIR, 'one-on-ones.json'),
+    fActions: path.join(DIR, 'one-on-one-actions.json'),
+  },
+  direction: {
+    tCommerciaux: 'direction_fiches',
+    iActions: 'direction_oto_actions_commercial_idx',
+    tEntretiens: 'direction_otos',
+    tActions: 'direction_oto_actions',
+    fCommerciaux: path.join(DIR, 'direction-fiches.json'),
+    fEntretiens: path.join(DIR, 'direction-otos.json'),
+    fActions: path.join(DIR, 'direction-oto-actions.json'),
+  },
+};
+
+interface Memoire {
+  commerciaux?: Commercial[];
+  entretiens?: OneOnOne[];
+  actions?: Action[];
+}
 
 const g = globalThis as unknown as {
   __o3Pool?: Pool;
-  __o3Commerciaux?: Commercial[];
-  __o3Entretiens?: OneOnOne[];
-  __o3Actions?: Action[];
+  __o3Mem?: Partial<Record<Espace, Memoire>>;
   __o3SchemaReady?: Promise<void>;
 };
+
+function mem(espace: Espace): Memoire {
+  const m = (g.__o3Mem ??= {});
+  return (m[espace] ??= {});
+}
 
 // ---------------------------------------------------------------- Postgres
 // Configuration SSL identique à lib/store.ts — dupliquée volontairement pour ne pas modifier
@@ -60,11 +101,9 @@ function pool(): Pool {
   return g.__o3Pool;
 }
 
-async function ensureSchema(): Promise<void> {
-  if (!g.__o3SchemaReady) {
-    g.__o3SchemaReady = pool()
-      .query(`
-        CREATE TABLE IF NOT EXISTS commerciaux (
+function schemaSql(c: Cibles): string {
+  return `
+        CREATE TABLE IF NOT EXISTS ${c.tCommerciaux} (
           id text PRIMARY KEY,
           nom text NOT NULL,
           libelle_boond text NOT NULL DEFAULT '',
@@ -76,9 +115,9 @@ async function ensureSchema(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now()
         );
 
-        CREATE TABLE IF NOT EXISTS one_on_ones (
+        CREATE TABLE IF NOT EXISTS ${c.tEntretiens} (
           id text PRIMARY KEY,
-          commercial_id text NOT NULL REFERENCES commerciaux(id) ON DELETE CASCADE,
+          commercial_id text NOT NULL REFERENCES ${c.tCommerciaux}(id) ON DELETE CASCADE,
           date date NOT NULL,
           auteur_email text NOT NULL DEFAULT '',
           -- Cycle de vie : BROUILLON tant que le manager n'a pas explicitement partagé.
@@ -96,11 +135,11 @@ async function ensureSchema(): Promise<void> {
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
         );
-        CREATE INDEX IF NOT EXISTS one_on_ones_commercial_idx ON one_on_ones (commercial_id, date DESC);
+        CREATE INDEX IF NOT EXISTS ${c.tEntretiens}_commercial_idx ON ${c.tEntretiens} (commercial_id, date DESC);
 
-        CREATE TABLE IF NOT EXISTS one_on_one_actions (
+        CREATE TABLE IF NOT EXISTS ${c.tActions} (
           id text PRIMARY KEY,
-          one_on_one_id text NOT NULL REFERENCES one_on_ones(id) ON DELETE CASCADE,
+          one_on_one_id text NOT NULL REFERENCES ${c.tEntretiens}(id) ON DELETE CASCADE,
           commercial_id text NOT NULL,
           libelle text NOT NULL,
           porteur text NOT NULL DEFAULT 'COMMERCIAL',
@@ -110,21 +149,29 @@ async function ensureSchema(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now(),
           closed_at timestamptz
         );
-        CREATE INDEX IF NOT EXISTS actions_commercial_idx ON one_on_one_actions (commercial_id, statut);
+        CREATE INDEX IF NOT EXISTS ${c.iActions} ON ${c.tActions} (commercial_id, statut);
 
         -- Migrations pour les bases créées avant l'introduction d'une colonne.
         -- CREATE TABLE IF NOT EXISTS ne touche pas une table existante : sans ces ALTER, une base
         -- déjà en service resterait sur l'ancien schéma et les requêtes échoueraient.
         -- Le défaut BROUILLON est volontaire : les entretiens saisis avant cette migration ne
         -- deviennent PAS visibles des commerciaux du jour au lendemain.
-        ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS statut text NOT NULL DEFAULT 'BROUILLON';
-        ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS partage_le timestamptz;
-        ALTER TABLE one_on_ones ADD COLUMN IF NOT EXISTS transcription text NOT NULL DEFAULT '';
+        ALTER TABLE ${c.tEntretiens} ADD COLUMN IF NOT EXISTS statut text NOT NULL DEFAULT 'BROUILLON';
+        ALTER TABLE ${c.tEntretiens} ADD COLUMN IF NOT EXISTS partage_le timestamptz;
+        ALTER TABLE ${c.tEntretiens} ADD COLUMN IF NOT EXISTS transcription text NOT NULL DEFAULT '';
         -- Rattachement hiérarchique : vide par défaut, donc aucune fiche existante ne devient
         -- visible d'un nouveau manager sans un rattachement explicite par un administrateur.
-        ALTER TABLE commerciaux ADD COLUMN IF NOT EXISTS manager_email text NOT NULL DEFAULT '';
-        CREATE INDEX IF NOT EXISTS commerciaux_manager_idx ON commerciaux (lower(manager_email));
-      `)
+        ALTER TABLE ${c.tCommerciaux} ADD COLUMN IF NOT EXISTS manager_email text NOT NULL DEFAULT '';
+        CREATE INDEX IF NOT EXISTS ${c.tCommerciaux}_manager_idx ON ${c.tCommerciaux} (lower(manager_email));
+      `;
+}
+
+async function ensureSchema(): Promise<void> {
+  if (!g.__o3SchemaReady) {
+    // Pour l'espace agence, schemaSql() produit exactement la requête d'origine (mêmes noms de
+    // tables et d'index) : aucun effet sur une base existante. Puis l'espace direction.
+    g.__o3SchemaReady = pool()
+      .query(schemaSql(CIBLES.agence) + schemaSql(CIBLES.direction))
       .then(() => undefined);
   }
   return g.__o3SchemaReady;
@@ -237,89 +284,94 @@ function writeJson(file: string, data: unknown): void {
   }
 }
 
-function memCommerciaux(): Commercial[] {
+function memCommerciaux(espace: Espace): Commercial[] {
   // Normalisation : les fiches écrites avant le rattachement manager n'ont pas le champ.
-  return (g.__o3Commerciaux ??= readJson<Commercial[]>(F_COMMERCIAUX, []).map((c) => ({
+  return (mem(espace).commerciaux ??= readJson<Commercial[]>(CIBLES[espace].fCommerciaux, []).map((c) => ({
     ...c,
     managerEmail: (c.managerEmail ?? '').toLowerCase(),
   })));
 }
-function memEntretiens(): OneOnOne[] {
+function memEntretiens(espace: Espace): OneOnOne[] {
   // Normalisation à la lecture : les fichiers écrits avant l'introduction du statut n'ont pas le
   // champ. Même règle fail-closed que côté Postgres — tout ce qui n'est pas explicitement
   // 'PARTAGE' est un brouillon, donc invisible du commercial.
-  return (g.__o3Entretiens ??= readJson<OneOnOne[]>(F_ENTRETIENS, []).map((e) => ({
+  return (mem(espace).entretiens ??= readJson<OneOnOne[]>(CIBLES[espace].fEntretiens, []).map((e) => ({
     ...e,
     statut: e.statut === 'PARTAGE' ? 'PARTAGE' : 'BROUILLON',
     partageLe: e.statut === 'PARTAGE' ? (e.partageLe ?? null) : null,
     transcription: e.transcription ?? '',
   })));
 }
-function memActions(): Action[] {
-  return (g.__o3Actions ??= readJson<Action[]>(F_ACTIONS, []));
+function memActions(espace: Espace): Action[] {
+  return (mem(espace).actions ??= readJson<Action[]>(CIBLES[espace].fActions, []));
 }
 
 // ================================================================ Commerciaux
 
-export async function listCommerciaux(inclureInactifs = false): Promise<Commercial[]> {
+export async function listCommerciaux(espace: Espace, inclureInactifs = false): Promise<Commercial[]> {
+  const t = CIBLES[espace];
   let all: Commercial[];
   if (USE_DB) {
     await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM commerciaux ORDER BY nom');
+    const { rows } = await pool().query(`SELECT * FROM ${t.tCommerciaux} ORDER BY nom`);
     all = rows.map(rowToCommercial);
   } else {
-    all = [...memCommerciaux()].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    all = [...memCommerciaux(espace)].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   }
   return inclureInactifs ? all : all.filter((c) => c.actif);
 }
 
-export async function getCommercial(id: string): Promise<Commercial | null> {
+export async function getCommercial(espace: Espace, id: string): Promise<Commercial | null> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM commerciaux WHERE id = $1', [id]);
+    const { rows } = await pool().query(`SELECT * FROM ${t.tCommerciaux} WHERE id = $1`, [id]);
     return rows[0] ? rowToCommercial(rows[0]) : null;
   }
-  return memCommerciaux().find((c) => c.id === id) ?? null;
+  return memCommerciaux(espace).find((c) => c.id === id) ?? null;
 }
 
 /** Retrouve le commercial rattaché à un compte applicatif. Comparaison insensible à la casse. */
-export async function getCommercialParEmail(email: string): Promise<Commercial | null> {
+export async function getCommercialParEmail(espace: Espace, email: string): Promise<Commercial | null> {
+  const t = CIBLES[espace];
   const e = email.trim().toLowerCase();
   if (!e) return null;
   if (USE_DB) {
     await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM commerciaux WHERE lower(email) = $1', [e]);
+    const { rows } = await pool().query(`SELECT * FROM ${t.tCommerciaux} WHERE lower(email) = $1`, [e]);
     return rows[0] ? rowToCommercial(rows[0]) : null;
   }
-  return memCommerciaux().find((c) => c.email.toLowerCase() === e) ?? null;
+  return memCommerciaux(espace).find((c) => c.email.toLowerCase() === e) ?? null;
 }
 
 /**
  * Fiches ACTIVES rattachées à un manager donné. C'est ce qui définit le périmètre d'un manager
  * non administrateur : il ne voit rien d'autre. Comparaison insensible à la casse.
  */
-export async function listCommerciauxParManager(email: string): Promise<Commercial[]> {
+export async function listCommerciauxParManager(espace: Espace, email: string): Promise<Commercial[]> {
+  const t = CIBLES[espace];
   const e = email.trim().toLowerCase();
   if (!e) return [];
   if (USE_DB) {
     await ensureSchema();
     const { rows } = await pool().query(
-      'SELECT * FROM commerciaux WHERE lower(manager_email) = $1 AND actif = true ORDER BY nom',
+      `SELECT * FROM ${t.tCommerciaux} WHERE lower(manager_email) = $1 AND actif = true ORDER BY nom`,
       [e],
     );
     return rows.map(rowToCommercial);
   }
-  return memCommerciaux()
+  return memCommerciaux(espace)
     .filter((c) => c.actif && c.managerEmail.toLowerCase() === e)
     .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 }
 
-export async function upsertCommercial(c: CommercialInput): Promise<Commercial> {
+export async function upsertCommercial(espace: Espace, c: CommercialInput): Promise<Commercial> {
+  const t = CIBLES[espace];
   const now = new Date().toISOString();
   if (USE_DB) {
     await ensureSchema();
     const { rows } = await pool().query(
-      `INSERT INTO commerciaux (id, nom, libelle_boond, email, pole, objectif_annuel, actif, manager_email)
+      `INSERT INTO ${t.tCommerciaux} (id, nom, libelle_boond, email, pole, objectif_annuel, actif, manager_email)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (id) DO UPDATE SET
          nom = excluded.nom, libelle_boond = excluded.libelle_boond, email = excluded.email,
@@ -339,7 +391,7 @@ export async function upsertCommercial(c: CommercialInput): Promise<Commercial> 
     );
     return rowToCommercial(rows[0]);
   }
-  const list = memCommerciaux();
+  const list = memCommerciaux(espace);
   const i = list.findIndex((x) => x.id === c.id);
   const item: Commercial = {
     ...c,
@@ -350,38 +402,41 @@ export async function upsertCommercial(c: CommercialInput): Promise<Commercial> 
   };
   if (i >= 0) list[i] = item;
   else list.push(item);
-  writeJson(F_COMMERCIAUX, list);
+  writeJson(t.fCommerciaux, list);
   return item;
 }
 
 // ================================================================ Entretiens
 
-export async function listOneOnOnes(commercialId?: string): Promise<OneOnOne[]> {
+export async function listOneOnOnes(espace: Espace, commercialId?: string): Promise<OneOnOne[]> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
     const { rows } = commercialId
       ? await pool().query(
-          'SELECT * FROM one_on_ones WHERE commercial_id = $1 ORDER BY date DESC, created_at DESC',
+          `SELECT * FROM ${t.tEntretiens} WHERE commercial_id = $1 ORDER BY date DESC, created_at DESC`,
           [commercialId],
         )
-      : await pool().query('SELECT * FROM one_on_ones ORDER BY date DESC, created_at DESC');
+      : await pool().query(`SELECT * FROM ${t.tEntretiens} ORDER BY date DESC, created_at DESC`);
     return rows.map(rowToOneOnOne);
   }
-  return memEntretiens()
+  return memEntretiens(espace)
     .filter((e) => !commercialId || e.commercialId === commercialId)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function getOneOnOne(id: string): Promise<OneOnOne | null> {
+export async function getOneOnOne(espace: Espace, id: string): Promise<OneOnOne | null> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM one_on_ones WHERE id = $1', [id]);
+    const { rows } = await pool().query(`SELECT * FROM ${t.tEntretiens} WHERE id = $1`, [id]);
     return rows[0] ? rowToOneOnOne(rows[0]) : null;
   }
-  return memEntretiens().find((e) => e.id === id) ?? null;
+  return memEntretiens(espace).find((e) => e.id === id) ?? null;
 }
 
-export async function upsertOneOnOne(e: OneOnOneInput): Promise<OneOnOne> {
+export async function upsertOneOnOne(espace: Espace, e: OneOnOneInput): Promise<OneOnOne> {
+  const t = CIBLES[espace];
   const now = new Date().toISOString();
   const chiffres = { ...CHIFFRES_VIDES, ...e.chiffres };
   const partage = { ...ZONE_PARTAGEE_VIDE, ...e.partage };
@@ -393,7 +448,7 @@ export async function upsertOneOnOne(e: OneOnOneInput): Promise<OneOnOne> {
   if (USE_DB) {
     await ensureSchema();
     const { rows } = await pool().query(
-      `INSERT INTO one_on_ones (id, commercial_id, date, auteur_email, statut, partage_le, chiffres, partage, prive, notes_brutes, transcription)
+      `INSERT INTO ${t.tEntretiens} (id, commercial_id, date, auteur_email, statut, partage_le, chiffres, partage, prive, notes_brutes, transcription)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (id) DO UPDATE SET
          commercial_id = excluded.commercial_id, date = excluded.date,
@@ -418,7 +473,7 @@ export async function upsertOneOnOne(e: OneOnOneInput): Promise<OneOnOne> {
     );
     return rowToOneOnOne(rows[0]);
   }
-  const list = memEntretiens();
+  const list = memEntretiens(espace);
   const i = list.findIndex((x) => x.id === e.id);
   const item: OneOnOne = {
     ...e,
@@ -433,7 +488,7 @@ export async function upsertOneOnOne(e: OneOnOneInput): Promise<OneOnOne> {
   };
   if (i >= 0) list[i] = item;
   else list.push(item);
-  writeJson(F_ENTRETIENS, list);
+  writeJson(t.fEntretiens, list);
   return item;
 }
 
@@ -442,37 +497,44 @@ export async function upsertOneOnOne(e: OneOnOneInput): Promise<OneOnOne> {
  * geste délibéré, pas un effet de bord d'un enregistrement de formulaire.
  */
 export async function definirPartage(
+  espace: Espace,
   id: string,
   partage: boolean,
 ): Promise<OneOnOne | null> {
-  const e = await getOneOnOne(id);
+  const e = await getOneOnOne(espace, id);
   if (!e) return null;
-  return upsertOneOnOne({
+  return upsertOneOnOne(espace, {
     ...e,
     statut: partage ? 'PARTAGE' : 'BROUILLON',
     partageLe: partage ? (e.partageLe ?? new Date().toISOString()) : null,
   });
 }
 
-export async function deleteOneOnOne(id: string): Promise<void> {
+export async function deleteOneOnOne(espace: Espace, id: string): Promise<void> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
     // ON DELETE CASCADE supprime les actions rattachées.
-    await pool().query('DELETE FROM one_on_ones WHERE id = $1', [id]);
+    await pool().query(`DELETE FROM ${t.tEntretiens} WHERE id = $1`, [id]);
     return;
   }
-  g.__o3Entretiens = memEntretiens().filter((e) => e.id !== id);
-  g.__o3Actions = memActions().filter((a) => a.oneOnOneId !== id);
-  writeJson(F_ENTRETIENS, g.__o3Entretiens);
-  writeJson(F_ACTIONS, g.__o3Actions);
+  const m = mem(espace);
+  m.entretiens = memEntretiens(espace).filter((e) => e.id !== id);
+  m.actions = memActions(espace).filter((a) => a.oneOnOneId !== id);
+  writeJson(t.fEntretiens, m.entretiens);
+  writeJson(t.fActions, m.actions);
 }
 
 // ================================================================ Actions
 
-export async function listActions(filtre?: {
-  commercialId?: string;
-  oneOnOneId?: string;
-}): Promise<Action[]> {
+export async function listActions(
+  espace: Espace,
+  filtre?: {
+    commercialId?: string;
+    oneOnOneId?: string;
+  },
+): Promise<Action[]> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
     const clauses: string[] = [];
@@ -487,12 +549,12 @@ export async function listActions(filtre?: {
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const { rows } = await pool().query(
-      `SELECT * FROM one_on_one_actions ${where} ORDER BY echeance NULLS LAST, created_at`,
+      `SELECT * FROM ${t.tActions} ${where} ORDER BY echeance NULLS LAST, created_at`,
       params,
     );
     return rows.map(rowToAction);
   }
-  return memActions()
+  return memActions(espace)
     .filter(
       (a) =>
         (!filtre?.commercialId || a.commercialId === filtre.commercialId) &&
@@ -506,16 +568,18 @@ export async function listActions(filtre?: {
     });
 }
 
-export async function getAction(id: string): Promise<Action | null> {
+export async function getAction(espace: Espace, id: string): Promise<Action | null> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
-    const { rows } = await pool().query('SELECT * FROM one_on_one_actions WHERE id = $1', [id]);
+    const { rows } = await pool().query(`SELECT * FROM ${t.tActions} WHERE id = $1`, [id]);
     return rows[0] ? rowToAction(rows[0]) : null;
   }
-  return memActions().find((a) => a.id === id) ?? null;
+  return memActions(espace).find((a) => a.id === id) ?? null;
 }
 
-export async function upsertAction(a: ActionInput): Promise<Action> {
+export async function upsertAction(espace: Espace, a: ActionInput): Promise<Action> {
+  const t = CIBLES[espace];
   const now = new Date().toISOString();
   // Horodatage de clôture posé ici plutôt que par l'appelant : garantit qu'une action « faite »
   // a toujours une date de clôture, et qu'une réouverture la remet à null.
@@ -523,18 +587,18 @@ export async function upsertAction(a: ActionInput): Promise<Action> {
   if (USE_DB) {
     await ensureSchema();
     const { rows } = await pool().query(
-      `INSERT INTO one_on_one_actions (id, one_on_one_id, commercial_id, libelle, porteur, echeance, statut, closed_at)
+      `INSERT INTO ${t.tActions} (id, one_on_one_id, commercial_id, libelle, porteur, echeance, statut, closed_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7, CASE WHEN $8 THEN now() ELSE NULL END)
        ON CONFLICT (id) DO UPDATE SET
          libelle = excluded.libelle, porteur = excluded.porteur, echeance = excluded.echeance,
          statut = excluded.statut, updated_at = now(),
-         closed_at = CASE WHEN $8 THEN COALESCE(one_on_one_actions.closed_at, now()) ELSE NULL END
+         closed_at = CASE WHEN $8 THEN COALESCE(${t.tActions}.closed_at, now()) ELSE NULL END
        RETURNING *`,
       [a.id, a.oneOnOneId, a.commercialId, a.libelle, a.porteur, a.echeance, a.statut, clos],
     );
     return rowToAction(rows[0]);
   }
-  const list = memActions();
+  const list = memActions(espace);
   const i = list.findIndex((x) => x.id === a.id);
   const item: Action = {
     ...a,
@@ -544,18 +608,20 @@ export async function upsertAction(a: ActionInput): Promise<Action> {
   };
   if (i >= 0) list[i] = item;
   else list.push(item);
-  writeJson(F_ACTIONS, list);
+  writeJson(t.fActions, list);
   return item;
 }
 
-export async function deleteAction(id: string): Promise<void> {
+export async function deleteAction(espace: Espace, id: string): Promise<void> {
+  const t = CIBLES[espace];
   if (USE_DB) {
     await ensureSchema();
-    await pool().query('DELETE FROM one_on_one_actions WHERE id = $1', [id]);
+    await pool().query(`DELETE FROM ${t.tActions} WHERE id = $1`, [id]);
     return;
   }
-  g.__o3Actions = memActions().filter((a) => a.id !== id);
-  writeJson(F_ACTIONS, g.__o3Actions);
+  const m = mem(espace);
+  m.actions = memActions(espace).filter((a) => a.id !== id);
+  writeJson(t.fActions, m.actions);
 }
 
 // ================================================================ Sauvegarde
@@ -565,16 +631,16 @@ export async function deleteAction(id: string): Promise<void> {
  * (contrairement aux opportunités, réimportables depuis BoondManager) : à exporter régulièrement.
  * Contient la ZONE PRIVÉE — réservé au manager, jamais exposé sans contrôle de rôle.
  */
-export async function exportTout(): Promise<{
+export async function exportTout(espace: Espace): Promise<{
   exporteLe: string;
   commerciaux: Commercial[];
   entretiens: OneOnOne[];
   actions: Action[];
 }> {
   const [commerciaux, entretiens, actions] = await Promise.all([
-    listCommerciaux(true),
-    listOneOnOnes(),
-    listActions(),
+    listCommerciaux(espace, true),
+    listOneOnOnes(espace),
+    listActions(espace),
   ]);
   return { exporteLe: new Date().toISOString(), commerciaux, entretiens, actions };
 }

@@ -21,7 +21,11 @@ const CSP = [
 const nextConfig: NextConfig = {
   async rewrites() {
     return {
-      beforeFiles: [{ source: '/', destination: '/pipeline.html' }],
+      // /france : même page, en espace direction (la page lit son URL). Accès vérifié par les API.
+      beforeFiles: [
+        { source: '/', destination: '/pipeline.html' },
+        { source: '/france', destination: '/pipeline.html' },
+      ],
     };
   },
   async headers() {

@@ -1,0 +1,218 @@
+// Vue transverse des actions, organisée semaine par semaine — c'est l'écran de pilotage
+// hebdomadaire : ce qui est en retard, ce qui tombe cette semaine, ce qui arrive.
+import { acces, filtrerActionsPourLecteur, gere, peutAccederAuModule, peutEcrire } from '@/lib/access';
+import { listActions, listCommerciaux, listOneOnOnes } from '@/lib/one-on-one-store';
+import {
+  ACTION_STATUT_META,
+  actionsParUrgence,
+  aujourdHui,
+  grouperParSemaine,
+  isEnRetard,
+  semaineIso,
+  type Action,
+} from '@/lib/one-on-one';
+import { dateFr } from '@/lib/format';
+import { baseSuivi, qsEspace, vocabulaire, type Espace } from '@/lib/espace';
+import { AccesRefuse, Badge, C, Card, Kpi, S, Shell } from '../ui';
+
+
+function LigneAction({
+  espace,
+  act,
+  nomCommercial,
+  today,
+  colonne,
+  editable,
+}: {
+  espace: Espace;
+  act: Action;
+  nomCommercial: string;
+  today: string;
+  /** La colonne d'action existe dans le tableau (le lecteur gère au moins une fiche). */
+  colonne: boolean;
+  /** Le bouton est proposé sur CETTE ligne (le lecteur gère la fiche concernée). */
+  editable: boolean;
+}) {
+  const retard = isEnRetard(act, today);
+  const base = baseSuivi(espace);
+  const qs = qsEspace(espace);
+  const v = vocabulaire(espace);
+  return (
+    <tr>
+      <td style={S.td}>
+        <a href={`${base}/entretien/${act.oneOnOneId}`} style={{ ...S.link, fontWeight: 400, color: C.deep }}>
+          {act.libelle}
+        </a>
+      </td>
+      <td style={{ ...S.td, color: C.gd }}>{nomCommercial}</td>
+      <td style={{ ...S.td, color: C.gd }}>
+        {act.porteur === 'MANAGER' ? v.manager : v.suiviCourt}
+      </td>
+      <td style={S.td}>
+        {act.echeance ? (
+          <Badge ton={retard ? 'red' : 'gray'}>{dateFr(act.echeance)}</Badge>
+        ) : (
+          <span style={{ color: C.gm }}>sans date</span>
+        )}
+      </td>
+      <td style={S.td}>
+        <Badge ton={act.statut === 'EN_COURS' ? 'yellow' : 'blue'}>
+          {ACTION_STATUT_META[act.statut].label}
+        </Badge>
+      </td>
+      {colonne && (
+        <td style={{ ...S.td, textAlign: 'right' }}>
+          {editable && (
+            <form action={`/api/one-on-one/action${qs}`} method="POST" style={{ display: 'inline' }}>
+              <input type="hidden" name="id" value={act.id} />
+              <input type="hidden" name="statut" value="FAITE" />
+              <input type="hidden" name="retour" value={`${base}/actions`} />
+              <button type="submit" style={S.btnGhost}>
+                Faite
+              </button>
+            </form>
+          )}
+        </td>
+      )}
+    </tr>
+  );
+}
+
+export async function VueActions({ espace }: { espace: Espace }) {
+  const a = await acces(espace);
+  if (!peutAccederAuModule(a)) return <AccesRefuse espace={espace} />;
+
+  const today = aujourdHui();
+  const semaineCourante = semaineIso(today);
+  // Colonne « Faite » affichée si le lecteur gère au moins une fiche ; le bouton lui-même n'apparaît
+  // que sur les actions de ses managés (un manager suivi ne clôture pas ses propres actions).
+  const editable = peutEcrire(a);
+
+  const [commerciaux, toutes, entretiens] = await Promise.all([
+    listCommerciaux(espace, true),
+    listActions(espace),
+    listOneOnOnes(espace),
+  ]);
+  // Cloisonnement : un commercial ne voit que ses propres actions, et uniquement celles issues
+  // d'entretiens PARTAGÉS. Filtrer sur le seul commercialId laisserait fuiter le contenu des
+  // brouillons.
+  const actions = filtrerActionsPourLecteur(toutes, entretiens, a);
+
+  const nomDe = new Map(commerciaux.map((c) => [c.id, c.nom]));
+  const ouvertes = actionsParUrgence(actions, today);
+  const enRetard = ouvertes.filter((x) => isEnRetard(x, today));
+  const parSemaine = grouperParSemaine(ouvertes.filter((x) => !isEnRetard(x, today)));
+
+  // Semaines triées : les datées d'abord, chronologiquement, puis le groupe « sans échéance ».
+  const semaines = [...parSemaine.keys()].sort((x, y) => {
+    if (x === '') return 1;
+    if (y === '') return -1;
+    return x.localeCompare(y);
+  });
+
+  const enTete: Record<string, string> = { '': 'Sans échéance' };
+
+  return (
+    <Shell espace={espace} titre="Actions" estManager={a.estManager} estAdmin={a.estAdmin}>
+      <header style={{ marginBottom: 18 }}>
+        <h1 style={S.h1}>Actions à suivre</h1>
+        <p style={S.sub}>
+          Semaine {semaineCourante.replace('-S', ' — semaine ')}. Les actions closes disparaissent
+          de cette vue ; elles restent visibles dans le compte rendu d’origine.
+        </p>
+      </header>
+
+      <div style={S.kpiGrid}>
+        <Kpi label="Ouvertes" valeur={String(ouvertes.length)} />
+        <Kpi
+          label="En retard"
+          valeur={String(enRetard.length)}
+          accent={enRetard.length ? C.orange : C.green}
+        />
+        <Kpi
+          label="Cette semaine"
+          valeur={String((parSemaine.get(semaineCourante) ?? []).length)}
+          accent={C.yellow}
+        />
+        <Kpi label="Sans échéance" valeur={String((parSemaine.get('') ?? []).length)} accent={C.gm} />
+      </div>
+
+      {enRetard.length > 0 && (
+        <Card titre="En retard" accent={C.orange}>
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>Action</th>
+                <th style={S.th}>{vocabulaire(espace).suiviCourt}</th>
+                <th style={S.th}>Porteur</th>
+                <th style={S.th}>Échéance</th>
+                <th style={S.th}>Statut</th>
+                {editable && <th style={S.th}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {enRetard.map((act) => (
+                <LigneAction
+                  espace={espace}
+                  key={act.id}
+                  act={act}
+                  nomCommercial={nomDe.get(act.commercialId) ?? '—'}
+                  today={today}
+                  colonne={editable}
+                  editable={gere(a, act.commercialId)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {semaines.length === 0 && enRetard.length === 0 ? (
+        <Card>
+          <p style={S.empty}>Aucune action ouverte. Tout est traité.</p>
+        </Card>
+      ) : (
+        semaines.map((sem) => {
+          const liste = parSemaine.get(sem) ?? [];
+          const courante = sem === semaineCourante;
+          return (
+            <Card
+              key={sem || 'sans'}
+              titre={
+                enTete[sem] ??
+                `${sem.replace('-S', ' — semaine ')}${courante ? ' (en cours)' : ''}`
+              }
+              accent={courante ? C.yellow : sem === '' ? C.gm : C.klein}
+            >
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Action</th>
+                    <th style={S.th}>{vocabulaire(espace).suiviCourt}</th>
+                    <th style={S.th}>Porteur</th>
+                    <th style={S.th}>Échéance</th>
+                    <th style={S.th}>Statut</th>
+                    {editable && <th style={S.th}></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {liste.map((act) => (
+                    <LigneAction
+                  espace={espace}
+                      key={act.id}
+                      act={act}
+                      nomCommercial={nomDe.get(act.commercialId) ?? '—'}
+                      today={today}
+                      colonne={editable}
+                  editable={gere(a, act.commercialId)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          );
+        })
+      )}
+    </Shell>
+  );
+}

@@ -3,13 +3,13 @@
 // Intérêt de l'intégration : le manager n'a pas à ressaisir les chiffres du commercial, ils sont
 // lus depuis le dernier import. Le rattachement se fait sur `Commercial.libelleBoond`, qui doit
 // reprendre À L'IDENTIQUE le champ de l'export qui porte la personne suivie :
-//   - périmètre agence : « Responsable manager » (un commercial) ;
-//   - périmètre France : « Agence » (un directeur d'agence suit toute son agence).
-// Voir lib/perimetre.ts.
+//   - espace agence    : « Responsable manager » (un commercial) ;
+//   - espace direction : « Agence » (un directeur d'agence suit toute son agence).
+// Voir lib/espace.ts.
 import { listOpportunities } from './store';
 import { isOpen, ponderation, statutOf, type Opportunity } from './domain';
 import { controlesCrm } from './controles-crm';
-import { vocabulaire } from './perimetre';
+import { vocabulaire, type Espace } from './espace';
 import type { Commercial } from './one-on-one';
 
 export type ChampRattachement = 'commercial' | 'agence';
@@ -80,10 +80,13 @@ export function calculerPipeline(
 
 /** Version I/O : charge les opportunités puis délègue au calcul pur. */
 export async function pipelineDuCommercial(
+  espace: Espace,
   c: Pick<Commercial, 'libelleBoond'>,
   today: string,
 ): Promise<PipelineCommercial> {
   if (!c.libelleBoond) return PIPELINE_VIDE;
-  const opps = await listOpportunities();
-  return calculerPipeline(opps, c.libelleBoond, today, vocabulaire().rattachement.champ);
+  // Import de l'espace : le rappel pipeline d'un OTO lit l'import France du DG, jamais celui
+  // de l'agence.
+  const opps = await listOpportunities(espace);
+  return calculerPipeline(opps, c.libelleBoond, today, vocabulaire(espace).rattachement.champ);
 }

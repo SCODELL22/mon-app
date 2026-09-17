@@ -1,53 +1,46 @@
-# Instance « direction générale » (périmètre France)
+# Espace direction générale (même application)
 
-Même code que l'app d'agence, **déploiement séparé avec sa propre base**. Une variable change le
-comportement : `APP_PERIMETRE=france`.
+L'outil du DG vit dans l'application existante, **à côté** du suivi de l'agence, sans le
+toucher :
 
-## Pourquoi une instance séparée
-
-- L'import CSV **remplace tout** : un export France dans l'instance d'agence écraserait l'export
-  de l'agence, et inversement.
-- Les OTO du DG portent sur les **directeurs d'agence eux-mêmes**. Dans l'instance d'agence, le
-  DA est administrateur et lirait ces comptes rendus. Une base distincte supprime le risque.
-- **Hébergement** : la personne qui détient le projet Railway et la base peut techniquement lire
-  les OTO. Le projet doit donc appartenir au DG ou à la DSI, **pas à un directeur d'agence**.
-
-## Ce que change `APP_PERIMETRE=france`
-
-| Zone | Comportement |
+| Écran | Rôle |
 |---|---|
-| Dashboard | Sélecteur d'agence (filtre tous les onglets), onglet **Contrôle agences** : pipeline, gagné de l'année et anomalies par agence (démarrage dépassé, clôture dépassée, pôle « Business development »), DA rattaché. Onglets Performance, Recrutement et l'Évolution mensuelle (données Paris codées en dur) masqués. |
-| Qualité saisie | KPI et liste « Date de démarrage dépassée » (aussi présents en mode agence). Les dates « Immédiate » sont ignorées. |
-| `/1-1` | Devient « OTO des directeurs d'agence ». Une fiche = un DA, rattachée à la **colonne Agence** de l'export (valeur exacte, ex. `FRA - Ippon Technologies - Lyon`). Trame DA dédiée. Rappel du pipeline de l'agence et des 3 contrôles dans la saisie et la fiche. |
-| Pré-remplissage | Même bouton qu'en agence (transcription Meet collée → trame), consigne adaptée à un OTO DG/DA. |
-| Accès | **Seuls les emails de `MANAGER_EMAILS` (le DG) accèdent aux OTO.** Aucune fiche ne donne de droit, même avec un email : les champs email/manager ne sont ni affichés ni enregistrés. Pas de partage des comptes rendus. |
+| `/france` | Dashboard France : même page que `/`, avec un **import CSV distinct**, un filtre par agence et l'onglet **Contrôle agences** (pipeline, gagné de l'année, besoins à date de démarrage dépassée, à date de clôture dépassée, en pôle « Business development », DA rattaché). Onglets Performance, Recrutement et Évolution mensuelle (données Paris codées en dur) masqués. |
+| `/oto-da` | OTO des directeurs d'agence : une fiche par DA rattachée à la **colonne Agence** de l'export France, trame DA, rappel du pipeline de l'agence et des 3 contrôles, copier-coller de la transcription Meet pour pré-remplir la trame. Pas de partage : les DA n'ont aucun accès. |
 
-## Mise en place (Railway)
+## Étanchéité
 
-1. Dans le projet Railway **du DG / de la DSI** : New → Deploy from GitHub repo → ce dépôt.
-   (Le dépôt doit être accessible à ce compte : l'inviter sur GitHub, ou forker dans l'organisation.)
-2. New → Database → Add PostgreSQL (base **dédiée**, ne pas réutiliser celle de l'agence).
-3. Variables du service :
+- **Stockage séparé** : tables `opportunities_direction`, `direction_fiches`, `direction_otos`,
+  `direction_oto_actions` (fichiers `.data/direction-*` sans base). L'import France n'écrase
+  jamais l'import de l'agence, et inversement.
+- **Droits séparés** : seuls les emails de `DG_EMAILS` entrent dans l'espace direction.
+  `MANAGER_EMAILS` (administrateurs de l'agence) n'y donne **aucun** droit, et le DG n'a aucun droit
+  sur les 1:1 de l'agence.
+- Les liens « Vue France » et « OTO des DA » n'apparaissent sur `/` que pour un compte DG.
+- **Limite assumée** : qui administre Railway et la base peut techniquement lire toutes les
+  tables. L'étanchéité vaut dans l'application.
+
+## Mise en place (Railway, service existant)
+
+Variables à ajouter :
 
 | Variable | Valeur |
 |---|---|
-| `APP_PERIMETRE` | `france` |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `AUTH_SECRET` | nouveau secret (`openssl rand -base64 32`), **différent** de l'instance d'agence |
-| `ALLOWED_EMAILS` | email du DG uniquement (ex. `prenom.nom@ippon.fr`) |
-| `MANAGER_EMAILS` | email du DG |
-| `APP_URL` | URL publique de l'instance |
-| `ANTHROPIC_API_KEY` **ou** config Vertex | pour le pré-remplissage depuis la transcription (voir `.env.example`) |
-| `RESEND_API_KEY`, `RESEND_FROM` | optionnel, mot de passe oublié |
+| `DG_EMAILS` | email du DG, ex. `prenom.nom@ippon.fr` |
+| `ALLOWED_EMAILS` | ajouter l'email du DG à la liste existante (sinon il ne peut pas créer son compte) |
+| `ANTHROPIC_API_KEY` ou config Vertex | déjà nécessaire pour le pré-remplissage côté agence ; sert aussi aux OTO |
 
-4. Le DG crée son compte via `/signup`, dépose l'export Boond « Besoins » **France** sur `/`.
-5. `/1-1/commerciaux` : une fiche par DA, champ « Agence » choisi dans la liste proposée
-   (valeurs de l'export). Un encart signale les agences sans fiche.
+Puis :
+
+1. Le DG crée son compte (`/signup`), ouvre `/france` et dépose l'export Boond « Besoins » France.
+2. `/oto-da/commerciaux` : une fiche par DA, champ « Agence » choisi dans la liste proposée
+   (valeurs exactes de la colonne Agence). Un encart signale les agences sans fiche.
+3. Sauvegarde régulière : lien « Sauvegarde » dans `/oto-da` (fichier `oto-da-AAAA-MM-JJ.json`).
 
 ## Points d'attention
 
-- L'export France doit contenir la colonne **Agence** et **Date de démarrage** (présentes dans
-  l'export Besoins standard).
+- L'export France doit contenir les colonnes **Agence** et **Date de démarrage**.
 - `pipeline.html` embarque des données Paris codées en dur (objectifs, CA/marge par client,
-  recrutement) : elles sont servies aussi par cette instance, même si les onglets sont masqués.
-- Faire régulièrement la sauvegarde `/api/one-on-one/export` : c'est le seul filet des OTO.
+  recrutement) : le DG, comme tout compte connecté, peut les recevoir via `/`.
+- Tout compte connecté peut toujours ouvrir `/` et y importer un CSV agence (comportement
+  historique, inchangé).

@@ -1,4 +1,11 @@
-// Contrôle d'accès du module 1:1.
+// Contrôle d'accès des modules de suivi (1:1 de l'agence, OTO de la direction).
+//
+// DEUX ESPACES, droits calculés séparément (cf. lib/espace.ts) :
+//   - espace AGENCE    : rôles ci-dessous (ADMIN / MANAGER / COMMERCIAL) ;
+//   - espace DIRECTION : un seul rôle, ADMIN, réservé aux emails de DG_EMAILS. Aucune fiche ne
+//     donne de droit. Être ADMIN de l'agence (MANAGER_EMAILS) ne donne RIEN ici.
+// Toute page ou route doit appeler acces(espace) avec l'espace des données qu'elle lit, et lire
+// ces données dans le stockage du même espace.
 //
 // Le reste de l'app n'a pas de rôles : « tout le monde voit les mêmes données une fois connecté »
 // (cf. SETUP.md). Ce module ne peut PAS s'en contenter — il contient des appréciations
@@ -24,11 +31,13 @@ import { cookies } from 'next/headers';
 import { verifySession, SESSION_COOKIE, type SessionPayload } from './auth';
 import { getCommercialParEmail, listCommerciauxParManager } from './one-on-one-store';
 import { stripPrivate, type Commercial, type OneOnOne } from './one-on-one';
-import { estModeFrance } from './perimetre';
+import type { Espace } from './espace';
 
 export type Role = 'ADMIN' | 'MANAGER' | 'COMMERCIAL' | 'AUCUN';
 
 export interface Acces {
+  /** Espace pour lequel ces droits ont été calculés. */
+  espace: Espace;
   /** Rôle le plus élevé, pour l'affichage. Les gardes, elles, raisonnent fiche par fiche. */
   role: Role;
   email: string;
@@ -44,6 +53,7 @@ export interface Acces {
 }
 
 export const ACCES_REFUSE: Acces = {
+  espace: 'agence',
   role: 'AUCUN',
   email: '',
   uid: '',
@@ -64,6 +74,27 @@ function adminEmails(): string[] {
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * Direction générale : emails de DG_EMAILS (séparés par des virgules). Seuls comptes admis dans
+ * l'espace direction. Non définie = espace direction fermé à tous (fail-closed).
+ */
+function dgEmails(): string[] {
+  return (process.env.DG_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function estEmailDg(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  if (!e) return false;
+  return dgEmails().includes(e);
+}
+
+function refusPour(espace: Espace): Acces {
+  return { ...ACCES_REFUSE, espace };
 }
 
 export function estEmailAdmin(email: string): boolean {
@@ -92,12 +123,15 @@ async function sessionCourante(): Promise<SessionPayload | null> {
 /**
  * Calcule les droits d'un email donné. Séparé de acces() pour être testable sans cookie.
  */
-export async function accesPourEmail(email: string, uid: string): Promise<Acces> {
+export async function accesPourEmail(espace: Espace, email: string, uid: string): Promise<Acces> {
   const e = email.trim().toLowerCase();
-  if (!e) return ACCES_REFUSE;
+  if (!e) return refusPour(espace);
 
-  if (estEmailAdmin(e)) {
+  if (espace === 'direction') {
+    // Espace direction : la liste DG_EMAILS, et rien d'autre. Aucune fiche n'est consultée.
+    if (!estEmailDg(e)) return refusPour('direction');
     return {
+      espace: 'direction',
       role: 'ADMIN',
       email: e,
       uid,
@@ -108,14 +142,22 @@ export async function accesPourEmail(email: string, uid: string): Promise<Acces>
     };
   }
 
-  // Périmètre France (APP_PERIMETRE=france) : les OTO portent sur les directeurs d'agence
-  // eux-mêmes et ne sont lus que par le DG. Aucune fiche ne donne de droit, quel que soit son
-  // contenu — un email saisi par erreur sur une fiche ne doit rien ouvrir. Fail-closed.
-  if (estModeFrance()) return ACCES_REFUSE;
+  if (estEmailAdmin(e)) {
+    return {
+      espace: 'agence',
+      role: 'ADMIN',
+      email: e,
+      uid,
+      commercial: null,
+      estAdmin: true,
+      managesIds: [],
+      estManager: true,
+    };
+  }
 
   const [ficheBrute, equipe] = await Promise.all([
-    getCommercialParEmail(e),
-    listCommerciauxParManager(e),
+    getCommercialParEmail('agence', e),
+    listCommerciauxParManager('agence', e),
   ]);
   const commercial = ficheBrute && ficheBrute.actif ? ficheBrute : null;
   // Garde-fou : une fiche dont on serait à la fois le titulaire et le manager ne donne JAMAIS
@@ -124,6 +166,7 @@ export async function accesPourEmail(email: string, uid: string): Promise<Acces>
 
   const role: Role = managesIds.length ? 'MANAGER' : commercial ? 'COMMERCIAL' : 'AUCUN';
   return {
+    espace: 'agence',
     role,
     email: e,
     uid,
@@ -135,17 +178,18 @@ export async function accesPourEmail(email: string, uid: string): Promise<Acces>
 }
 
 /**
- * Détermine les droits de l'utilisateur courant pour le module 1:1.
- * À appeler en tête de CHAQUE page et de CHAQUE route API du module — il n'y a pas de garde
- * globale : proxy.ts vérifie qu'on est connecté, pas qu'on a le droit de lire ces données.
+ * Détermine les droits de l'utilisateur courant sur un espace.
+ * À appeler en tête de CHAQUE page et de CHAQUE route API des modules de suivi — il n'y a pas de
+ * garde globale : proxy.ts vérifie qu'on est connecté, pas qu'on a le droit de lire ces données.
  */
-export async function acces(): Promise<Acces> {
+export async function acces(espace: Espace): Promise<Acces> {
   const session = await sessionCourante();
-  if (!session) return ACCES_REFUSE;
+  if (!session) return refusPour(espace);
 
   // En dev sans AUTH_SECRET, on donne la main pour pouvoir travailler localement.
   if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== 'production') {
     return {
+      espace,
       role: 'ADMIN',
       email: session.email.toLowerCase(),
       uid: session.uid,
@@ -156,7 +200,7 @@ export async function acces(): Promise<Acces> {
     };
   }
 
-  return accesPourEmail(session.email, session.uid);
+  return accesPourEmail(espace, session.email, session.uid);
 }
 
 // ---------------------------------------------------------------- Gardes

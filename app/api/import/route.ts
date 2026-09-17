@@ -1,5 +1,7 @@
 import { replaceAll, saveRawCsv } from '@/lib/store';
 import { parseBoondCsv, decodeUpload } from '@/lib/boond-import';
+import { acces, refus } from '@/lib/access';
+import { espaceDeRequete } from '@/lib/espace';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +10,10 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 Mo
 const MAX_ROWS = 50_000; // nombre d'opportunités maximum par import
 
 export async function POST(req: Request) {
+  const espace = espaceDeRequete(req);
+  // Import France : DG uniquement. Import agence : tout compte connecté (comportement historique).
+  if (espace === 'direction' && !(await acces('direction')).estAdmin) return refus('forbidden');
+
   const form = await req.formData();
   const file = form.get('file');
   if (!(file instanceof File) || file.size === 0) {
@@ -25,7 +31,7 @@ export async function POST(req: Request) {
   if (result.opportunities.length > MAX_ROWS) {
     return Response.json({ error: 'toomany' }, { status: 413 });
   }
-  const count = await replaceAll(result.opportunities);
-  await saveRawCsv(text);
+  const count = await replaceAll(espace, result.opportunities);
+  await saveRawCsv(espace, text);
   return Response.json({ count });
 }

@@ -153,12 +153,12 @@ l’identique** (casse comprise) le « Responsable manager » de l’export. C�
 d’afficher automatiquement le pipeline du commercial dans l’écran de saisie. L’écran
 `/1-1/commerciaux` signale les libellés présents dans l’import mais rattachés à aucune fiche.
 
-## Instance direction générale (`APP_PERIMETRE=france`)
+## Espace direction générale (`/france`, `/oto-da`)
 
-Le même code sert une seconde instance, **avec sa propre base**, pour le DG : vue de toutes les
-agences (filtre par agence, onglet « Contrôle agences »), et OTO des directeurs d'agence réservés
-au DG. Voir **[DEPLOY-DG.md](./DEPLOY-DG.md)**. Sans cette variable, rien ne change pour une
-instance d'agence.
+La même application héberge l'outil du DG, **étanche** du suivi de l'agence : vue France par
+agence (`/france`, import CSV distinct) et OTO des directeurs d'agence (`/oto-da`, tables
+distinctes). Accès : emails de `DG_EMAILS` uniquement — être administrateur de l'agence n'y donne
+rien. Voir **[DEPLOY-DG.md](./DEPLOY-DG.md)**.
 
 ## Avec PostgreSQL (Supabase / Neon)
 

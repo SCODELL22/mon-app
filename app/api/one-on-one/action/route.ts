@@ -3,24 +3,27 @@ import { acces, gere, peutEcrire, refus } from '@/lib/access';
 import { redirectTo } from '@/lib/auth';
 import { getAction, upsertAction } from '@/lib/one-on-one-store';
 import type { ActionStatut } from '@/lib/one-on-one';
+import { baseSuivi, espaceDeRequete } from '@/lib/espace';
 
 export const dynamic = 'force-dynamic';
 
 const STATUTS_VALIDES: ActionStatut[] = ['OUVERTE', 'EN_COURS', 'FAITE', 'ABANDONNEE'];
 
 export async function POST(req: Request) {
-  const a = await acces();
+  const espace = espaceDeRequete(req);
+  const a = await acces(espace);
   if (a.role === 'AUCUN') return refus('unauthorized');
   if (!peutEcrire(a)) return refus('forbidden');
 
   const form = await req.formData();
   const id = String(form.get('id') ?? '').trim();
-  const retourBrut = String(form.get('retour') ?? '/1-1/actions');
+  const defaut = `${baseSuivi(espace)}/actions`;
+  const retourBrut = String(form.get('retour') ?? defaut);
   // Chemin interne uniquement : « //domaine » serait suivi par le navigateur vers un autre site.
   const retour =
-    retourBrut.startsWith('/') && !retourBrut.startsWith('//') ? retourBrut : '/1-1/actions';
+    retourBrut.startsWith('/') && !retourBrut.startsWith('//') ? retourBrut : defaut;
 
-  const action = await getAction(id);
+  const action = await getAction(espace, id);
   if (!action) return redirectTo(retour);
   // Un manager ne touche qu'aux actions de ses managés, même en forgeant l'identifiant.
   if (!gere(a, action.commercialId)) return refus('forbidden');
@@ -28,7 +31,7 @@ export async function POST(req: Request) {
   const statutBrut = String(form.get('statut') ?? '');
   const echeanceBrute = String(form.get('echeance') ?? '').trim();
 
-  await upsertAction({
+  await upsertAction(espace, {
     ...action,
     statut: STATUTS_VALIDES.includes(statutBrut as ActionStatut)
       ? (statutBrut as ActionStatut)
