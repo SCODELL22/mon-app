@@ -6,6 +6,7 @@
 import { acces, gere, peutEcrire, refus } from '@/lib/access';
 import { redirectTo } from '@/lib/auth';
 import { definirPartage, getOneOnOne } from '@/lib/one-on-one-store';
+import { estModeFrance } from '@/lib/perimetre';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,8 @@ export async function POST(req: Request) {
   const a = await acces();
   if (a.role === 'AUCUN') return refus('unauthorized');
   if (!peutEcrire(a)) return refus('forbidden');
+  // Périmètre France : les OTO ne se partagent pas (aucun directeur d'agence n'a d'accès).
+  if (estModeFrance()) return refus('forbidden');
 
   const form = await req.formData();
   const id = String(form.get('id') ?? '').trim();

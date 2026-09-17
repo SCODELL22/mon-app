@@ -32,6 +32,21 @@ ok(r.opportunities.find((o) => o.id === 'AO2')!.etape === 'GAGNE', 'Fermé gagn�
 ok(r.opportunities.find((o) => o.id === 'AO3')!.etape === 'PERDU', 'Fermé perdu -> PERDU');
 ok(r.opportunities.find((o) => o.id === 'AO4')!.etape === 'ABANDONNE', 'Abandonné -> ABANDONNE');
 
+// 1bis) Colonnes du périmètre France : Agence, Date de démarrage (« Immédiate » ignorée), Type
+const sampleFr = [
+  'Référence interne;Titre;Type;Société - Nom;État;Date de démarrage;Date de clôture;CA Envisagé HT;Pondération;Responsable manager;Pôle;Agence',
+  'F1;Mission L;Régie;ClientL;Proposition;01/03/2026;30/06/2026;50000;0,5;DUPONT Léa;Data;FRA - Ippon Technologies - Lyon',
+  'F2;Mission P;Projet Interne;Ippon;Qualification;Immédiate;;0;0;DUPONT Léa;Business development;FRA - Ippon Technologies - Paris',
+].join('\n');
+const rf = parseBoondCsv(sampleFr);
+const f1 = rf.opportunities.find((o) => o.id === 'F1')!;
+const f2 = rf.opportunities.find((o) => o.id === 'F2')!;
+ok(f1.agence === 'FRA - Ippon Technologies - Lyon', 'colonne Agence -> agence');
+ok(f1.dateDemarrage === '2026-03-01', 'date de démarrage FR -> ISO');
+ok(f2.dateDemarrage === null, '« Immédiate » -> pas de date de démarrage');
+ok(f2.typeBesoin === 'Projet Interne', 'colonne Type -> typeBesoin');
+ok(r.opportunities[0].agence === '', 'export sans colonne Agence -> agence vide');
+
 // 2) Si le vrai export est présent dans le bac d'upload, on l'analyse aussi
 const realPath = '/sessions/lucid-charming-faraday/mnt/uploads/besoins (42).csv';
 if (fs.existsSync(realPath)) {

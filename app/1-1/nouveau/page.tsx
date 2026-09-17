@@ -14,7 +14,8 @@ import { pipelineDuCommercial } from '@/lib/one-on-one-pipeline';
 import { ACTION_STATUTS, actionsParUrgence, aujourdHui, isEnRetard } from '@/lib/one-on-one';
 import { extractionDisponible } from '@/lib/extraction-trame';
 import { dateFr, euros } from '@/lib/format';
-import { AccesRefuse, BandeauPrive, Badge, C, Card, Message, S, Shell } from '../ui';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+import { AccesRefuse, BandeauPrive, Badge, C, Card, Message, S, Shell, majuscule } from '../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,18 +63,20 @@ export default async function Page({
   const commercial = commercialId ? await getCommercial(commercialId) : null;
 
   const today = aujourdHui();
+  const v = vocabulaire();
+  const france = estModeFrance();
   // Le bouton de pré-remplissage n'apparaît que si Vertex AI est configuré sur cet environnement.
   const extractionPossible = extractionDisponible();
 
   if (commerciaux.length === 0) {
     return (
-      <Shell titre="Nouveau 1:1" estManager estAdmin={a.estAdmin}>
+      <Shell titre={`Nouveau ${v.entretien}`} estManager estAdmin={a.estAdmin}>
         <h1 style={S.h1}>Nouvel entretien</h1>
         {a.estAdmin ? (
           <Message ton="info">
-            Aucun commercial enregistré. Crée d’abord les fiches dans{' '}
+            Aucun {v.suivi} enregistré. Crée d’abord les fiches dans{' '}
             <a href="/1-1/commerciaux" style={S.link}>
-              Commerciaux
+              {majuscule(v.suivis)}
             </a>
             .
           </Message>
@@ -105,11 +108,17 @@ export default async function Page({
   const lignesVides = Math.max(0, LIGNES_ACTIONS - actionsDeCetEntretien.length);
 
   return (
-    <Shell titre={entretien ? 'Modifier le 1:1' : 'Nouveau 1:1'} estManager estAdmin={a.estAdmin}>
+    <Shell
+      titre={entretien ? `Modifier l’${v.entretien}` : `Nouveau ${v.entretien}`}
+      estManager
+      estAdmin={a.estAdmin}
+    >
       <header style={{ marginBottom: 18 }}>
         <h1 style={S.h1}>{entretien ? 'Modifier l’entretien' : 'Nouvel entretien'}</h1>
         <p style={S.sub}>
-          Tout ce qui est saisi hors de la zone jaune est lisible par le commercial concerné.
+          {france
+            ? 'Mode direction générale : aucun directeur d’agence n’a accès à ces comptes rendus.'
+            : 'Tout ce qui est saisi hors de la zone jaune est lisible par le commercial concerné.'}
         </p>
       </header>
 
@@ -129,7 +138,7 @@ export default async function Page({
       {/* Sélecteur de commercial hors du formulaire principal : changer de personne recharge la
           page pour rafraîchir le pipeline et les actions à reporter. */}
       {!entretien && (
-        <Card titre="Commercial">
+        <Card titre={majuscule(v.suivi)}>
           <form method="GET" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
             <label style={{ ...S.label, minWidth: 260 }}>
               Personne concernée
@@ -149,7 +158,7 @@ export default async function Page({
       )}
 
       {pipeline && pipeline.rattache && (
-        <Card titre="Rappel du pipeline (BoondManager)">
+        <Card titre={france ? 'Rappel du pipeline de l’agence (BoondManager)' : 'Rappel du pipeline (BoondManager)'}>
           <p style={{ fontSize: 13, color: C.gd, marginBottom: 10 }}>
             Chiffres issus du dernier import, non modifiables ici. Ils servent de référence pour
             commenter l’écart avec le déclaratif.
@@ -167,10 +176,23 @@ export default async function Page({
             <span>
               Affaires ouvertes <strong>{pipeline.nbOuvertes}</strong>
             </span>
-            {pipeline.enRetard.length > 0 && (
+            {!france && pipeline.enRetard.length > 0 && (
               <Badge ton="red">{pipeline.enRetard.length} au-delà de la date de clôture</Badge>
             )}
           </div>
+          {france && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              <Badge ton={pipeline.demarrageDepasse.length ? 'red' : 'green'}>
+                {pipeline.demarrageDepasse.length} démarrage dépassé
+              </Badge>
+              <Badge ton={pipeline.clotureDepassee.length ? 'red' : 'green'}>
+                {pipeline.clotureDepassee.length} clôture dépassée
+              </Badge>
+              <Badge ton={pipeline.poleBusinessDev.length ? 'orange' : 'green'}>
+                {pipeline.poleBusinessDev.length} en pôle Business development
+              </Badge>
+            </div>
+          )}
         </Card>
       )}
 
@@ -246,7 +268,7 @@ export default async function Page({
               />
             </label>
             <label style={S.label}>
-              CA signé (€ HT)
+              {v.chiffres.caSigne}
               <input
                 name="caSigne"
                 inputMode="decimal"
@@ -255,7 +277,7 @@ export default async function Page({
               />
             </label>
             <label style={S.label}>
-              Pipeline pondéré déclaré (€)
+              {v.chiffres.pipelinePondere}
               <input
                 name="pipelinePondere"
                 inputMode="decimal"
@@ -265,7 +287,7 @@ export default async function Page({
               />
             </label>
             <label style={S.label}>
-              RDV tenus
+              {v.chiffres.nbRdv}
               <input
                 name="nbRdv"
                 inputMode="numeric"
@@ -274,7 +296,7 @@ export default async function Page({
               />
             </label>
             <label style={S.label}>
-              Nouveaux comptes ouverts
+              {v.chiffres.nbNouveauxComptes}
               <input
                 name="nbNouveauxComptes"
                 inputMode="numeric"
@@ -305,7 +327,7 @@ export default async function Page({
                   marginBottom: 12,
                 }}
               >
-                <strong>Traité comme privé.</strong> Le verbatim ne part jamais vers le commercial,
+                <strong>Traité comme privé.</strong> Le verbatim ne part jamais vers le {v.suivi},
                 même une fois l’entretien partagé. Ne recopie pas de propos personnels dans la
                 trame à droite.
               </p>
@@ -365,57 +387,57 @@ export default async function Page({
           <Card titre="Trame de l’entretien">
           <div style={{ display: 'grid', gap: 14 }}>
             <label style={S.label}>
-              Lecture des chiffres et du pipeline
+              {v.rubriques.pipelineCommentaire.titre}
               <textarea
                 name="pipelineCommentaire"
                 defaultValue={entretien?.partage.pipelineCommentaire ?? ''}
                 style={S.textarea}
-                placeholder="Écart vs objectif, qualité du pipeline, prévisions de signature…"
+                placeholder={v.rubriques.pipelineCommentaire.placeholder}
               />
             </label>
             <label style={S.label}>
-              Deals à risque et blocages
+              {v.rubriques.dealsARisque.titre}
               <textarea
                 name="dealsARisque"
                 defaultValue={entretien?.partage.dealsARisque ?? ''}
                 style={S.textarea}
-                placeholder="Affaires bloquées, comptes à relancer, aide attendue du manager…"
+                placeholder={v.rubriques.dealsARisque.placeholder}
               />
             </label>
             <label style={S.label}>
-              Activité amont
+              {v.rubriques.activiteAmont.titre}
               <textarea
                 name="activiteAmont"
                 defaultValue={entretien?.partage.activiteAmont ?? ''}
                 style={S.textarea}
-                placeholder="Prospection, RDV pris, ouverture de comptes — les indicateurs avancés."
+                placeholder={v.rubriques.activiteAmont.placeholder}
               />
             </label>
             <label style={S.label}>
-              Administratif
+              {v.rubriques.administratif.titre}
               <textarea
                 name="administratif"
                 defaultValue={entretien?.partage.administratif ?? ''}
                 style={S.textarea}
-                placeholder="Saisie Boond, CRA, notes de frais, congés…"
+                placeholder={v.rubriques.administratif.placeholder}
               />
             </label>
             <label style={S.label}>
-              Développement et montée en compétences
+              {v.rubriques.developpement.titre}
               <textarea
                 name="developpement"
                 defaultValue={entretien?.partage.developpement ?? ''}
                 style={S.textarea}
-                placeholder="Plan de progression, formation, accompagnement terrain."
+                placeholder={v.rubriques.developpement.placeholder}
               />
             </label>
             <label style={S.label}>
-              Points clés et décisions
+              {v.rubriques.pointsCles.titre}
               <textarea
                 name="pointsCles"
                 defaultValue={entretien?.partage.pointsCles ?? ''}
                 style={S.textarea}
-                placeholder="Ce qui est décidé, à retenir de la séance."
+                placeholder={v.rubriques.pointsCles.placeholder}
               />
             </label>
           </div>
@@ -445,8 +467,8 @@ export default async function Page({
                   </td>
                   <td style={S.td}>
                     <select name="action_porteur" defaultValue={act.porteur} style={S.input}>
-                      <option value="COMMERCIAL">Commercial</option>
-                      <option value="MANAGER">Manager</option>
+                      <option value="COMMERCIAL">{v.suiviCourt}</option>
+                      <option value="MANAGER">{v.manager}</option>
                     </select>
                   </td>
                   <td style={S.td}>
@@ -480,8 +502,8 @@ export default async function Page({
                   </td>
                   <td style={S.td}>
                     <select name="action_porteur" defaultValue="COMMERCIAL" style={S.input}>
-                      <option value="COMMERCIAL">Commercial</option>
-                      <option value="MANAGER">Manager</option>
+                      <option value="COMMERCIAL">{v.suiviCourt}</option>
+                      <option value="MANAGER">{v.manager}</option>
                     </select>
                   </td>
                   <td style={S.td}>

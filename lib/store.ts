@@ -98,6 +98,11 @@ async function ensureSchema(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now()
         );
         CREATE TABLE IF NOT EXISTS app_meta (key text PRIMARY KEY, value text);
+        -- Colonnes du périmètre France (lib/perimetre.ts). ADD COLUMN IF NOT EXISTS : sans effet
+        -- sur une base déjà migrée, et sans perte sur une base d'agence existante.
+        ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS agence text NOT NULL DEFAULT '';
+        ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS date_demarrage date;
+        ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS type_besoin text NOT NULL DEFAULT '';
       `)
       .then(() => undefined);
   }
@@ -117,6 +122,9 @@ function rowToOpp(r: any): Opportunity {
     probabilite: Number(r.probabilite),
     etape: r.etape as Etape,
     dateCloturePrev: r.date_cloture_prev ? new Date(r.date_cloture_prev).toISOString().slice(0, 10) : null,
+    agence: r.agence ?? '',
+    dateDemarrage: r.date_demarrage ? new Date(r.date_demarrage).toISOString().slice(0, 10) : null,
+    typeBesoin: r.type_besoin ?? '',
     notes: r.notes ?? '',
     createdAt: new Date(r.created_at).toISOString(),
     updatedAt: new Date(r.updated_at).toISOString(),
@@ -164,9 +172,9 @@ export async function replaceAll(items: OpportunityInput[]): Promise<number> {
       await client.query('TRUNCATE opportunities');
       for (const o of items) {
         await client.query(
-          `INSERT INTO opportunities (id, nom, client, pole, commercial, secteur, montant, probabilite, etape, date_cloture_prev, notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-          [o.id, o.nom, o.client, o.pole, o.commercial, o.secteur, o.montant, o.probabilite, o.etape, o.dateCloturePrev, o.notes],
+          `INSERT INTO opportunities (id, nom, client, pole, commercial, secteur, montant, probabilite, etape, date_cloture_prev, notes, agence, date_demarrage, type_besoin)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [o.id, o.nom, o.client, o.pole, o.commercial, o.secteur, o.montant, o.probabilite, o.etape, o.dateCloturePrev, o.notes, o.agence ?? '', o.dateDemarrage ?? null, o.typeBesoin ?? ''],
         );
       }
       await client.query('COMMIT');

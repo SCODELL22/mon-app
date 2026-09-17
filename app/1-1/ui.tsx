@@ -5,6 +5,12 @@
 // app/login/page.tsx et app/signup/page.tsx. Rester cohérent évite d'avoir deux systèmes de
 // style dans la même application.
 import type { CSSProperties, ReactNode } from 'react';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+
+/** Première lettre en majuscule (« commerciaux » -> « Commerciaux »). */
+export function majuscule(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
 
 export const C = {
   klein: '#003CDC',
@@ -195,6 +201,7 @@ export function Shell({
   estAdmin?: boolean;
   children: ReactNode;
 }) {
+  const v = vocabulaire();
   return (
     <div style={S.page}>
       <link href={FONT_LINK} rel="stylesheet" />
@@ -215,13 +222,13 @@ export function Shell({
           </a>
           {estManager && (
             <a href="/1-1/nouveau" style={S.navLink}>
-              Nouveau 1:1
+              Nouveau {v.entretien}
             </a>
           )}
           {estAdmin && (
             <>
               <a href="/1-1/commerciaux" style={S.navLink}>
-                Commerciaux
+                {majuscule(v.suivis)}
               </a>
               <a href="/api/one-on-one/export" style={S.navLink}>
                 Sauvegarde
@@ -351,6 +358,7 @@ export function Badge({
  * note sensible dans le mauvais champ.
  */
 export function BandeauPrive({ children }: { children: ReactNode }) {
+  const v = vocabulaire();
   return (
     <section
       style={{
@@ -372,11 +380,12 @@ export function BandeauPrive({ children }: { children: ReactNode }) {
             borderRadius: 1,
           }}
         />
-        Zone manager — privée
+        Zone {v.manager} — privée
       </h2>
       <p style={{ fontSize: 12, color: C.gd, marginBottom: 14 }}>
-        Visible uniquement par les managers. Ce bloc n’est jamais transmis au commercial, ni à
-        l’écran ni dans le compte rendu imprimé.
+        {estModeFrance()
+          ? 'Notes personnelles du DG. Ce bloc n’est jamais transmis au directeur d’agence.'
+          : 'Visible uniquement par les managers. Ce bloc n’est jamais transmis au commercial, ni à l’écran ni dans le compte rendu imprimé.'}
       </p>
       {children}
     </section>
@@ -404,9 +413,9 @@ export function AccesRefuse() {
       <div style={{ ...S.card, maxWidth: 460, textAlign: 'center' }}>
         <h1 style={{ ...S.h1, fontSize: '1.5rem' }}>Accès non autorisé</h1>
         <p style={{ ...S.sub, marginBottom: 16 }}>
-          Le suivi des entretiens individuels est réservé aux managers et aux commerciaux
-          concernés. Si tu penses que c’est une erreur, demande à ton manager de rattacher ton
-          adresse à ta fiche.
+          {estModeFrance()
+            ? 'Les OTO des directeurs d’agence sont réservés à la direction générale.'
+            : 'Le suivi des entretiens individuels est réservé aux managers et aux commerciaux concernés. Si tu penses que c’est une erreur, demande à ton manager de rattacher ton adresse à ta fiche.'}
         </p>
         <a href="/" style={S.btnGhost}>
           Retour au pipeline

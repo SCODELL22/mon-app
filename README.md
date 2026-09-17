@@ -31,7 +31,7 @@ Ouvrir http://localhost:3000. Sans base configurée, l’app utilise un **fichie
 3. L’import **remplace l’intégralité** des données. L’encodage Latin-1 de Boond est géré automatiquement.
 
 Colonnes lues : Titre, Société - Nom, Pôle, Responsable manager, Domaine d’intervention,
-CA Envisagé HT, Pondération, Date de clôture, État, Référence interne.
+CA Envisagé HT, Pondération, Date de clôture, État, Référence interne, Agence, Date de démarrage, Type.
 
 ## Suivi des entretiens 1:1 (`/1-1`)
 
@@ -152,6 +152,13 @@ privée comprise, administrateurs uniquement). À faire régulièrement : c’es
 l’identique** (casse comprise) le « Responsable manager » de l’export. C’est ce qui permet
 d’afficher automatiquement le pipeline du commercial dans l’écran de saisie. L’écran
 `/1-1/commerciaux` signale les libellés présents dans l’import mais rattachés à aucune fiche.
+
+## Instance direction générale (`APP_PERIMETRE=france`)
+
+Le même code sert une seconde instance, **avec sa propre base**, pour le DG : vue de toutes les
+agences (filtre par agence, onglet « Contrôle agences »), et OTO des directeurs d'agence réservés
+au DG. Voir **[DEPLOY-DG.md](./DEPLOY-DG.md)**. Sans cette variable, rien ne change pour une
+instance d'agence.
 
 ## Avec PostgreSQL (Supabase / Neon)
 

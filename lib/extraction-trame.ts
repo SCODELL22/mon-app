@@ -27,6 +27,16 @@
 // rendu lu par le commercial. C'est le mode d'échec normal, pas un cas limite.
 import type { ZonePartagee } from './one-on-one';
 import { canalActif, genererJson } from './vertex';
+import { perimetre, vocabulaire, type Perimetre } from './perimetre';
+
+const RUBRIQUES: (keyof ZonePartagee)[] = [
+  'pipelineCommentaire',
+  'dealsARisque',
+  'activiteAmont',
+  'administratif',
+  'developpement',
+  'pointsCles',
+];
 
 /** Proposition d'action extraite d'une transcription. Aucune n'est créée sans validation. */
 export interface ActionProposee {
@@ -99,6 +109,33 @@ N'invente jamais un chiffre, un nom de client ou une échéance qui n'apparaît 
 transcription. Laisse une rubrique vide plutôt que de la combler.`;
 
 /**
+ * Consigne selon le périmètre. Le périmètre agence garde mot pour mot la consigne historique
+ * (CONSIGNE) : l'instance d'agence en production ne doit voir aucun changement de comportement.
+ */
+export function consignePour(p: Perimetre): string {
+  if (p !== 'france') return CONSIGNE;
+  const v = vocabulaire(p);
+  const rubriques = RUBRIQUES.map((cle) => `- ${cle} : ${v.rubriques[cle].description}`).join('\n');
+  const porteurs = 'COMMERCIAL = le directeur d’agence, MANAGER = le directeur général';
+  return `Tu analyses la transcription d'${v.contexteExtraction}.
+
+Remplis une trame de compte rendu PROFESSIONNEL destiné à être lu par le ${v.suivi} lui-même.
+
+Rubriques à remplir, uniquement à partir de ce qui a réellement été dit :
+${rubriques}
+
+Extrais aussi les actions décidées, avec leur porteur (${porteurs}) et leur échéance
+si elle a été énoncée.
+
+RÈGLE IMPÉRATIVE : n'inclus RIEN qui relève de la vie personnelle, de la santé, du moral, de la
+rémunération, d'un projet de départ ou d'une confidence. Ces éléments doivent être écartés de la
+trame, même s'ils ont été abordés pendant l'entretien. En cas de doute, écarte.
+
+N'invente jamais un chiffre, un nom de client ou une échéance qui n'apparaît pas dans la
+transcription. Laisse une rubrique vide plutôt que de la combler.`;
+}
+
+/**
  * Point d'entrée unique de l'extraction.
  *
  * POUR BRANCHER UN FOURNISSEUR : implémenter l'appel dans ce corps de fonction, en respectant le
@@ -114,59 +151,41 @@ transcription. Laisse une rubrique vide plutôt que de la combler.`;
  * fiable qu'une consigne en langage naturel — on ne compte pas sur son obéissance, on ne lui
  * laisse pas d'endroit où écrire.
  */
-const SCHEMA = {
-  type: 'object',
-  properties: {
-    pipelineCommentaire: {
-      type: 'string',
-      description: 'Lecture des chiffres, écart avec l’objectif, prévisions de signature.',
-    },
-    dealsARisque: {
-      type: 'string',
-      description: 'Affaires bloquées, comptes à relancer, aide attendue du manager.',
-    },
-    activiteAmont: {
-      type: 'string',
-      description: 'Prospection, rendez-vous tenus, ouverture de comptes.',
-    },
-    administratif: { type: 'string', description: 'Saisie CRM, CRA, notes de frais, congés.' },
-    developpement: {
-      type: 'string',
-      description: 'Montée en compétences, formation, accompagnement terrain.',
-    },
-    pointsCles: { type: 'string', description: 'Décisions prises et conclusions de la séance.' },
-    actions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          libelle: { type: 'string' },
-          porteur: { type: 'string', enum: ['COMMERCIAL', 'MANAGER'] },
-          echeance: {
-            type: 'string',
-            description: 'Date au format AAAA-MM-JJ, ou chaîne vide si non énoncée.',
+export function schemaPour(p: Perimetre) {
+  const v = vocabulaire(p);
+  const props: Record<string, unknown> = {};
+  for (const cle of RUBRIQUES) {
+    props[cle] = { type: 'string', description: v.rubriques[cle].description };
+  }
+  return {
+    type: 'object',
+    properties: {
+      ...props,
+      actions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            libelle: { type: 'string' },
+            porteur: { type: 'string', enum: ['COMMERCIAL', 'MANAGER'] },
+            echeance: {
+              type: 'string',
+              description: 'Date au format AAAA-MM-JJ, ou chaîne vide si non énoncée.',
+            },
           },
+          required: ['libelle', 'porteur'],
+          // Interdit au modèle d'inventer des champs supplémentaires dans une action.
+          additionalProperties: false,
         },
-        required: ['libelle', 'porteur'],
-        // Interdit au modèle d'inventer des champs supplémentaires dans une action.
-        additionalProperties: false,
       },
     },
-  },
-  required: ['pointsCles'],
-  // Barrière structurelle : le modèle ne peut pas ajouter de propriété hors de cette liste.
-  // C'est le complément de validerReponse() — l'une contraint en amont, l'autre nettoie en aval.
-  additionalProperties: false,
-} as const;
+    required: ['pointsCles'],
+    // Barrière structurelle : le modèle ne peut pas ajouter de propriété hors de cette liste.
+    // C'est le complément de validerReponse() — l'une contraint en amont, l'autre nettoie en aval.
+    additionalProperties: false,
+  };
+}
 
-const RUBRIQUES: (keyof ZonePartagee)[] = [
-  'pipelineCommentaire',
-  'dealsARisque',
-  'activiteAmont',
-  'administratif',
-  'developpement',
-  'pointsCles',
-];
 
 /** Coupe une valeur trop longue : un modèle qui part en digression ne doit pas remplir la base. */
 function texteSur(v: unknown, max = 4000): string {
@@ -220,7 +239,8 @@ export async function extraireTrame(transcription: string): Promise<TrameExtrait
   // contexte. Un 1:1 d'une heure tient largement en dessous.
   const contenu = transcription.slice(0, 200_000);
 
-  const brut = await genererJson(CONSIGNE, contenu, SCHEMA as unknown as Record<string, unknown>);
+  const p = perimetre();
+  const brut = await genererJson(consignePour(p), contenu, schemaPour(p));
   return validerReponse(brut);
 }
 

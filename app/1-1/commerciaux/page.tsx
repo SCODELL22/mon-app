@@ -7,7 +7,8 @@ import { listCommerciaux } from '@/lib/one-on-one-store';
 import { POLES } from '@/lib/config';
 import { listOpportunities } from '@/lib/store';
 import { euros } from '@/lib/format';
-import { AccesRefuse, Badge, C, Card, Message, S, Shell } from '../ui';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+import { AccesRefuse, Badge, C, Card, Message, S, Shell, majuscule } from '../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,23 +38,31 @@ export default async function Page({
 
   // Libellés « Responsable manager » réellement présents dans le dernier import Boond : sert à
   // proposer les bonnes valeurs plutôt que de laisser saisir un libellé qui ne correspondra à rien.
+  const v = vocabulaire();
+  // Périmètre France : pas de compte pour les DA, ni de manager intermédiaire (cf. lib/access.ts).
+  const france = estModeFrance();
   const opps = await listOpportunities();
-  const libellesBoond = [...new Set(opps.map((o) => o.commercial).filter(Boolean))].sort();
+  const libellesBoond = [
+    ...new Set(
+      opps
+        .map((o) => (v.rattachement.champ === 'agence' ? (o.agence ?? '') : o.commercial))
+        .filter(Boolean),
+    ),
+  ].sort();
   const rattaches = new Set(commerciaux.map((c) => c.libelleBoond).filter(Boolean));
   const orphelins = libellesBoond.filter((l) => !rattaches.has(l));
   // Managers déjà utilisés : proposés à la saisie pour éviter les variantes d'orthographe.
   const managersConnus = [...new Set(commerciaux.map((c) => c.managerEmail).filter(Boolean))].sort();
-  const sansManager = commerciaux.filter((c) => c.actif && !c.managerEmail).length;
+  const sansManager = france ? 0 : commerciaux.filter((c) => c.actif && !c.managerEmail).length;
 
   return (
-    <Shell titre="Commerciaux" estManager estAdmin>
+    <Shell titre={majuscule(v.suivis)} estManager estAdmin>
       <header style={{ marginBottom: 18 }}>
-        <h1 style={S.h1}>Commerciaux suivis</h1>
+        <h1 style={S.h1}>{majuscule(v.suivis)} suivis</h1>
         <p style={S.sub}>
-          Le libellé BoondManager rattache la fiche aux opportunités du pipeline. L’email donne au
-          commercial l’accès en lecture à ses propres comptes rendus — zone privée exclue. Le
-          manager rattaché mène les 1:1 de la fiche et en lit tout, zone privée comprise ; il ne
-          voit aucune autre fiche. Les administrateurs voient tout.
+          {france
+            ? 'L’agence rattache la fiche aux besoins de l’export BoondManager (colonne « Agence », à l’identique). Les directeurs d’agence n’ont aucun accès à cette application : seuls les administrateurs (MANAGER_EMAILS) lisent les OTO.'
+            : 'Le libellé BoondManager rattache la fiche aux opportunités du pipeline. L’email donne au commercial l’accès en lecture à ses propres comptes rendus — zone privée exclue. Le manager rattaché mène les 1:1 de la fiche et en lit tout, zone privée comprise ; il ne voit aucune autre fiche. Les administrateurs voient tout.'}
         </p>
       </header>
 
@@ -69,14 +78,14 @@ export default async function Page({
 
       {orphelins.length > 0 && (
         <Message ton="info">
-          {orphelins.length} libellé{orphelins.length > 1 ? 's' : ''} présent
+          {orphelins.length} {france ? 'agence' : 'libellé'}{orphelins.length > 1 ? 's' : ''} présent
           {orphelins.length > 1 ? 's' : ''} dans BoondManager sans fiche associée :{' '}
-          <strong>{orphelins.join(', ')}</strong>. Leur pipeline ne remontera pas dans les 1:1
-          tant qu’une fiche ne les reprend pas à l’identique.
+          <strong>{orphelins.join(', ')}</strong>. Leur pipeline ne remontera pas dans les{' '}
+          {v.entretien} tant qu’une fiche ne les reprend pas à l’identique.
         </Message>
       )}
 
-      <Card titre={enEdition ? `Modifier — ${enEdition.nom}` : 'Ajouter un commercial'}>
+      <Card titre={enEdition ? `Modifier — ${enEdition.nom}` : `Ajouter un ${v.suivi}`}>
         <form
           action="/api/one-on-one/commercial"
           method="POST"
@@ -95,13 +104,13 @@ export default async function Page({
               />
             </label>
             <label style={S.label}>
-              Libellé BoondManager
+              {v.rattachement.label}
               <input
                 name="libelleBoond"
                 defaultValue={enEdition?.libelleBoond ?? ''}
                 list="libelles-boond"
                 style={S.input}
-                placeholder="Responsable manager, à l’identique"
+                placeholder={v.rattachement.placeholder}
               />
               <datalist id="libelles-boond">
                 {libellesBoond.map((l) => (
@@ -109,32 +118,36 @@ export default async function Page({
                 ))}
               </datalist>
             </label>
-            <label style={S.label}>
-              Email du compte
-              <input
-                type="email"
-                name="email"
-                defaultValue={enEdition?.email ?? ''}
-                style={S.input}
-                placeholder="prenom.nom@ippon.fr — laisser vide pour aucun accès"
-              />
-            </label>
-            <label style={S.label}>
-              Manager (N+1)
-              <input
-                type="email"
-                name="managerEmail"
-                defaultValue={enEdition?.managerEmail ?? ''}
-                list="managers-connus"
-                style={S.input}
-                placeholder="prenom.nom@ippon.fr — mène ses 1:1"
-              />
-              <datalist id="managers-connus">
-                {managersConnus.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
-            </label>
+            {!france && (
+              <>
+                <label style={S.label}>
+                  Email du compte
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={enEdition?.email ?? ''}
+                    style={S.input}
+                    placeholder="prenom.nom@ippon.fr — laisser vide pour aucun accès"
+                  />
+                </label>
+                <label style={S.label}>
+                  Manager (N+1)
+                  <input
+                    type="email"
+                    name="managerEmail"
+                    defaultValue={enEdition?.managerEmail ?? ''}
+                    list="managers-connus"
+                    style={S.input}
+                    placeholder="prenom.nom@ippon.fr — mène ses 1:1"
+                  />
+                  <datalist id="managers-connus">
+                    {managersConnus.map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+                </label>
+              </>
+            )}
             <label style={S.label}>
               Pôle
               <input
@@ -191,9 +204,9 @@ export default async function Page({
               <tr>
                 <th style={S.th}>Nom</th>
                 <th style={S.th}>Pôle</th>
-                <th style={S.th}>Libellé Boond</th>
-                <th style={S.th}>Accès compte</th>
-                <th style={S.th}>Manager</th>
+                <th style={S.th}>{france ? 'Agence' : 'Libellé Boond'}</th>
+                {!france && <th style={S.th}>Accès compte</th>}
+                {!france && <th style={S.th}>Manager</th>}
                 <th style={S.th}>Objectif</th>
                 <th style={S.th}></th>
               </tr>
@@ -215,22 +228,26 @@ export default async function Page({
                       <Badge ton="yellow">non rattaché</Badge>
                     )}
                   </td>
-                  <td style={S.td}>
-                    {c.email ? <Badge ton="blue">{c.email}</Badge> : <Badge ton="gray">aucun</Badge>}
-                  </td>
-                  <td style={S.td}>
-                    {c.managerEmail ? (
-                      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-                        <Badge ton="blue">{c.managerEmail}</Badge>
-                        {/* Sans place dans ALLOWED_EMAILS, le manager ne peut pas créer son compte. */}
-                        {!isAllowedEmail(c.managerEmail) && (
-                          <Badge ton="yellow">inscription bloquée</Badge>
-                        )}
-                      </span>
-                    ) : (
-                      <Badge ton="gray">admin seul</Badge>
-                    )}
-                  </td>
+                  {!france && (
+                    <td style={S.td}>
+                      {c.email ? <Badge ton="blue">{c.email}</Badge> : <Badge ton="gray">aucun</Badge>}
+                    </td>
+                  )}
+                  {!france && (
+                    <td style={S.td}>
+                      {c.managerEmail ? (
+                        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                          <Badge ton="blue">{c.managerEmail}</Badge>
+                          {/* Sans place dans ALLOWED_EMAILS, le manager ne peut pas créer son compte. */}
+                          {!isAllowedEmail(c.managerEmail) && (
+                            <Badge ton="yellow">inscription bloquée</Badge>
+                          )}
+                        </span>
+                      ) : (
+                        <Badge ton="gray">admin seul</Badge>
+                      )}
+                    </td>
+                  )}
                   <td style={S.td}>{c.objectifAnnuel ? euros(c.objectifAnnuel) : '—'}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
                     <a href={`/1-1/commerciaux?edit=${c.id}`} style={S.btnGhost}>

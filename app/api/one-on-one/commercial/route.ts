@@ -11,6 +11,7 @@ import { acces, estEmailAdmin, peutAdministrer, refus } from '@/lib/access';
 import { isValidEmail, isAllowedEmailDomain, redirectTo } from '@/lib/auth';
 import { getCommercialParEmail, listCommerciaux, upsertCommercial } from '@/lib/one-on-one-store';
 import { nouvelId } from '@/lib/one-on-one';
+import { estModeFrance } from '@/lib/perimetre';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,11 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const id = String(form.get('id') ?? '').trim();
   const nom = String(form.get('nom') ?? '').trim();
-  const email = String(form.get('email') ?? '').trim().toLowerCase();
-  const managerEmail = String(form.get('managerEmail') ?? '').trim().toLowerCase();
+  // Périmètre France : aucun accès ne se délègue par fiche (cf. lib/access.ts). On n'enregistre
+  // donc jamais ces deux champs, même si un formulaire forgé les envoie.
+  const france = estModeFrance();
+  const email = france ? '' : String(form.get('email') ?? '').trim().toLowerCase();
+  const managerEmail = france ? '' : String(form.get('managerEmail') ?? '').trim().toLowerCase();
 
   if (!nom) return redirectTo('/1-1/commerciaux?error=nom');
 

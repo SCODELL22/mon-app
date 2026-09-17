@@ -12,6 +12,7 @@ import {
   type Action,
 } from '@/lib/one-on-one';
 import { dateFr } from '@/lib/format';
+import { vocabulaire } from '@/lib/perimetre';
 import { AccesRefuse, Badge, C, Card, Kpi, S, Shell } from '../ui';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,9 @@ function LigneAction({
         </a>
       </td>
       <td style={{ ...S.td, color: C.gd }}>{nomCommercial}</td>
-      <td style={{ ...S.td, color: C.gd }}>{act.porteur === 'MANAGER' ? 'Manager' : 'Commercial'}</td>
+      <td style={{ ...S.td, color: C.gd }}>
+        {act.porteur === 'MANAGER' ? vocabulaire().manager : vocabulaire().suiviCourt}
+      </td>
       <td style={S.td}>
         {act.echeance ? (
           <Badge ton={retard ? 'red' : 'gray'}>{dateFr(act.echeance)}</Badge>
@@ -136,7 +139,7 @@ export default async function Page() {
             <thead>
               <tr>
                 <th style={S.th}>Action</th>
-                <th style={S.th}>Commercial</th>
+                <th style={S.th}>{vocabulaire().suiviCourt}</th>
                 <th style={S.th}>Porteur</th>
                 <th style={S.th}>Échéance</th>
                 <th style={S.th}>Statut</th>
@@ -180,7 +183,7 @@ export default async function Page() {
                 <thead>
                   <tr>
                     <th style={S.th}>Action</th>
-                    <th style={S.th}>Commercial</th>
+                    <th style={S.th}>{vocabulaire().suiviCourt}</th>
                     <th style={S.th}>Porteur</th>
                     <th style={S.th}>Échéance</th>
                     <th style={S.th}>Statut</th>

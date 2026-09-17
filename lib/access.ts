@@ -24,6 +24,7 @@ import { cookies } from 'next/headers';
 import { verifySession, SESSION_COOKIE, type SessionPayload } from './auth';
 import { getCommercialParEmail, listCommerciauxParManager } from './one-on-one-store';
 import { stripPrivate, type Commercial, type OneOnOne } from './one-on-one';
+import { estModeFrance } from './perimetre';
 
 export type Role = 'ADMIN' | 'MANAGER' | 'COMMERCIAL' | 'AUCUN';
 
@@ -106,6 +107,11 @@ export async function accesPourEmail(email: string, uid: string): Promise<Acces>
       estManager: true,
     };
   }
+
+  // Périmètre France (APP_PERIMETRE=france) : les OTO portent sur les directeurs d'agence
+  // eux-mêmes et ne sont lus que par le DG. Aucune fiche ne donne de droit, quel que soit son
+  // contenu — un email saisi par erreur sur une fiche ne doit rien ouvrir. Fail-closed.
+  if (estModeFrance()) return ACCES_REFUSE;
 
   const [ficheBrute, equipe] = await Promise.all([
     getCommercialParEmail(e),

@@ -11,7 +11,8 @@ import {
 import { listActions, listCommerciaux, listOneOnOnes } from '@/lib/one-on-one-store';
 import { aujourdHui, construireSuivi, isActionOuverte, isEnRetard } from '@/lib/one-on-one';
 import { dateFr } from '@/lib/format';
-import { AccesRefuse, Badge, C, Card, Kpi, Message, S, Shell } from './ui';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+import { AccesRefuse, Badge, C, Card, Kpi, Message, S, Shell, majuscule } from './ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,8 @@ export default async function Page() {
   if (!peutAccederAuModule(a)) return <AccesRefuse />;
 
   const today = aujourdHui();
+  const v = vocabulaire();
+  const france = estModeFrance();
   const [tousCommerciaux, tousEntretiens, toutesActions] = await Promise.all([
     listCommerciaux(),
     listOneOnOnes(),
@@ -48,11 +51,13 @@ export default async function Page() {
   );
 
   return (
-    <Shell titre="Suivi des 1:1" estManager={a.estManager} estAdmin={a.estAdmin}>
+    <Shell titre={v.titreModule} estManager={a.estManager} estAdmin={a.estAdmin}>
       <header style={{ marginBottom: 18 }}>
-        <h1 style={S.h1}>Suivi des entretiens</h1>
+        <h1 style={S.h1}>{france ? 'OTO des directeurs d’agence' : 'Suivi des entretiens'}</h1>
         <p style={S.sub}>
-          {a.estManager
+          {france
+            ? `${equipe.length} directeur${equipe.length > 1 ? 's' : ''} d’agence suivi${equipe.length > 1 ? 's' : ''}. Accès réservé à la direction générale.`
+            : a.estManager
             ? `${equipe.length} commercial${equipe.length > 1 ? 'aux' : ''} suivi${equipe.length > 1 ? 's' : ''}${a.estAdmin ? ' (agence)' : ' dans ton équipe'}.`
             : 'Tes comptes rendus d’entretien et les actions qui te concernent.'}
         </p>
@@ -60,7 +65,7 @@ export default async function Page() {
 
       <div style={S.kpiGrid}>
         <Kpi label="Entretiens" valeur={String(entretiens.length)} sousTitre="depuis le début" />
-        {a.estManager && (
+        {a.estManager && !france && (
           <Kpi
             label="Brouillons"
             valeur={String(
@@ -82,31 +87,32 @@ export default async function Page() {
             label="À revoir"
             valeur={String(aVoir.length)}
             accent={aVoir.length ? C.orange : C.green}
-            sousTitre={`sans 1:1 depuis ${SEUIL_JOURS} j`}
+            sousTitre={`sans ${v.entretien} depuis ${SEUIL_JOURS} j`}
           />
         )}
       </div>
 
       {a.estAdmin && commerciaux.length === 0 && (
         <Message ton="info">
-          Aucun commercial enregistré. Commence par créer les fiches dans{' '}
+          Aucun {v.suivi} enregistré. Commence par créer les fiches dans{' '}
           <a href="/1-1/commerciaux" style={S.link}>
-            Commerciaux
+            {majuscule(v.suivis)}
           </a>{' '}
-          — le rattachement au libellé BoondManager et au manager s’y fait aussi.
+          — le rattachement à la colonne « {v.rattachement.colonneBoond} » de BoondManager s’y fait
+          aussi.
         </Message>
       )}
 
-      <Card titre="Par commercial">
+      <Card titre={`Par ${v.suivi}`}>
         {suivi.length === 0 ? (
           <p style={S.empty}>Rien à afficher.</p>
         ) : (
           <table style={S.table}>
             <thead>
               <tr>
-                <th style={S.th}>Commercial</th>
-                <th style={S.th}>Pôle</th>
-                <th style={S.th}>Dernier 1:1</th>
+                <th style={S.th}>{v.suiviCourt}</th>
+                <th style={S.th}>{france ? 'Agence' : 'Pôle'}</th>
+                <th style={S.th}>Dernier {v.entretien}</th>
                 <th style={S.th}>Ancienneté</th>
                 <th style={S.th}>Actions</th>
                 <th style={S.th}></th>
@@ -123,7 +129,9 @@ export default async function Page() {
                         {s.commercial.nom}
                       </a>
                     </td>
-                    <td style={{ ...S.td, color: C.gd }}>{s.commercial.pole || '—'}</td>
+                    <td style={{ ...S.td, color: C.gd }}>
+                      {(france ? s.commercial.libelleBoond : s.commercial.pole) || '—'}
+                    </td>
                     <td style={S.td}>
                       {s.dernierEntretien ? dateFr(s.dernierEntretien.date) : '—'}
                     </td>
@@ -154,7 +162,7 @@ export default async function Page() {
                           href={`/1-1/nouveau?commercial=${s.commercial.id}`}
                           style={S.btnGhost}
                         >
-                          Nouveau 1:1
+                          Nouveau {v.entretien}
                         </a>
                       )}
                     </td>
@@ -174,7 +182,7 @@ export default async function Page() {
             <thead>
               <tr>
                 <th style={S.th}>Date</th>
-                <th style={S.th}>Commercial</th>
+                <th style={S.th}>{v.suiviCourt}</th>
                 <th style={S.th}>Points clés</th>
               </tr>
             </thead>
@@ -187,7 +195,7 @@ export default async function Page() {
                       <a href={`/1-1/entretien/${e.id}`} style={S.link}>
                         {dateFr(e.date)}
                       </a>{' '}
-                      {gere(a, e.commercialId) && e.statut === 'BROUILLON' && (
+                      {!france && gere(a, e.commercialId) && e.statut === 'BROUILLON' && (
                         <Badge ton="yellow">brouillon</Badge>
                       )}
                     </td>

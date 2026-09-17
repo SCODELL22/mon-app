@@ -2,10 +2,17 @@
 //
 // Intérêt de l'intégration : le manager n'a pas à ressaisir les chiffres du commercial, ils sont
 // lus depuis le dernier import. Le rattachement se fait sur `Commercial.libelleBoond`, qui doit
-// reprendre À L'IDENTIQUE le champ « Responsable manager » de l'export (cf. /1-1/commerciaux).
+// reprendre À L'IDENTIQUE le champ de l'export qui porte la personne suivie :
+//   - périmètre agence : « Responsable manager » (un commercial) ;
+//   - périmètre France : « Agence » (un directeur d'agence suit toute son agence).
+// Voir lib/perimetre.ts.
 import { listOpportunities } from './store';
 import { isOpen, ponderation, statutOf, type Opportunity } from './domain';
+import { controlesCrm } from './controles-crm';
+import { vocabulaire } from './perimetre';
 import type { Commercial } from './one-on-one';
+
+export type ChampRattachement = 'commercial' | 'agence';
 
 export interface PipelineCommercial {
   /** false si le commercial n'a pas de libellé Boond, ou si ce libellé n'existe pas dans l'import. */
@@ -18,6 +25,10 @@ export interface PipelineCommercial {
   principales: Opportunity[];
   /** Opportunités ouvertes dont la date de clôture prévue est dépassée — sujet classique de 1:1. */
   enRetard: Opportunity[];
+  /** Contrôles qualité CRM (cf. lib/controles-crm.ts). */
+  demarrageDepasse: Opportunity[];
+  clotureDepassee: Opportunity[];
+  poleBusinessDev: Opportunity[];
 }
 
 export const PIPELINE_VIDE: PipelineCommercial = {
@@ -28,22 +39,31 @@ export const PIPELINE_VIDE: PipelineCommercial = {
   gagne: 0,
   principales: [],
   enRetard: [],
+  demarrageDepasse: [],
+  clotureDepassee: [],
+  poleBusinessDev: [],
 };
 
+function valeurRattachement(o: Opportunity, champ: ChampRattachement): string {
+  return champ === 'agence' ? (o.agence ?? '') : o.commercial;
+}
+
 /**
- * Calcule le pipeline d'un commercial à partir des opportunités importées.
+ * Calcule le pipeline d'une fiche à partir des opportunités importées.
  * `today` est injecté pour rester testable (même principe que isEnRetard dans one-on-one.ts).
  */
 export function calculerPipeline(
   opps: Opportunity[],
   libelleBoond: string,
   today: string,
+  champ: ChampRattachement = 'commercial',
 ): PipelineCommercial {
   if (!libelleBoond) return PIPELINE_VIDE;
-  const siennes = opps.filter((o) => o.commercial === libelleBoond);
+  const siennes = opps.filter((o) => valeurRattachement(o, champ) === libelleBoond);
   if (siennes.length === 0) return PIPELINE_VIDE;
 
   const ouvertes = siennes.filter((o) => isOpen(o.etape));
+  const ctrl = controlesCrm(siennes, today);
   return {
     rattache: true,
     nbOuvertes: ouvertes.length,
@@ -52,6 +72,9 @@ export function calculerPipeline(
     gagne: siennes.filter((o) => statutOf(o.etape) === 'won').reduce((s, o) => s + o.montant, 0),
     principales: [...ouvertes].sort((a, b) => ponderation(b) - ponderation(a)).slice(0, 6),
     enRetard: ouvertes.filter((o) => o.dateCloturePrev !== null && o.dateCloturePrev < today),
+    demarrageDepasse: ctrl.demarrageDepasse,
+    clotureDepassee: ctrl.clotureDepassee,
+    poleBusinessDev: ctrl.poleBusinessDev,
   };
 }
 
@@ -62,5 +85,5 @@ export async function pipelineDuCommercial(
 ): Promise<PipelineCommercial> {
   if (!c.libelleBoond) return PIPELINE_VIDE;
   const opps = await listOpportunities();
-  return calculerPipeline(opps, c.libelleBoond, today);
+  return calculerPipeline(opps, c.libelleBoond, today, vocabulaire().rattachement.champ);
 }

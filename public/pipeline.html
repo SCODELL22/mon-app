@@ -46,6 +46,16 @@ body{background:var(--bg);color:var(--deep);font-family:'Open Sans',Arial,sans-s
 .wb{font-size:12px;color:rgba(255,255,255,.55);}
 .btn-g{font-size:12px;color:rgba(255,255,255,.38);background:none;border:1px solid rgba(255,255,255,.1);border-radius:2px;padding:5px 12px;cursor:pointer;}
 .btn-g:hover{background:rgba(255,255,255,.05);color:#fff;}
+/* Périmètre France (APP_PERIMETRE=france) : éléments masqués tant que /api/config n'a pas répondu. */
+.fr-only{display:none!important;}
+body.mode-france .fr-only{display:revert!important;}
+body.mode-france .agence-only{display:none!important;}
+.agence-sel{font-size:12px;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:2px;padding:4px 8px;max-width:220px;}
+.agence-sel option{color:#000F41;}
+.dt td.num,.dt th.num{text-align:right;}
+.dt td a.cnt{color:var(--klein);font-weight:700;text-decoration:none;cursor:pointer;}
+.dt td a.cnt.zero{color:var(--gm);font-weight:400;cursor:default;}
+.dt tr.tot td{font-weight:700;border-top:2px solid var(--klein);background:#F7F9FF;}
 /* TABS */
 .tabs-bar{background:var(--surface);border-bottom:2px solid var(--gl);display:flex;flex-wrap:wrap;padding:0 2rem;}
 .tab-btn{font-family:'Saira Extra Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gm);background:none;border:none;border-bottom:3px solid transparent;padding:13px 20px;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-2px;white-space:nowrap;}
@@ -204,6 +214,7 @@ select{appearance:auto;}
       <span class="tb-count" id="opp-count"></span>
     </div>
     <div class="tb-right">
+      <select class="agence-sel fr-only" id="agence-sel" title="Filtrer tous les onglets sur une agence"><option value="">Toutes les agences</option></select>
       <span class="wb" id="data-fresh"></span>
       <span class="wb" id="week-badge"></span>
       <!-- Suivi des 1:1 : module distinct, rendu côté serveur (app/1-1). Accès restreint aux
@@ -216,7 +227,8 @@ select{appearance:auto;}
   </div>
   <div class="tabs-bar">
     <button class="tab-btn active" data-tab="encours">Pipe en cours</button>
-    <button class="tab-btn" data-tab="performance">Performance</button>
+    <button class="tab-btn fr-only" data-tab="agences">Contrôle agences</button>
+    <button class="tab-btn agence-only" data-tab="performance">Performance</button>
     <button class="tab-btn" data-tab="cemois">Ce mois</button>
     <button class="tab-btn" data-tab="gagnees">Gagnées</button>
     <button class="tab-btn" data-tab="perdues">Perdues</button>
@@ -224,7 +236,7 @@ select{appearance:auto;}
     <button class="tab-btn" data-tab="evolution">Évolution</button>
     <button class="tab-btn" data-tab="dynamique">Dynamique mensuelle</button>
     <button class="tab-btn" data-tab="qualite">Qualité saisie</button>
-    <button class="tab-btn" data-tab="recrutement">Recrutement</button>
+    <button class="tab-btn agence-only" data-tab="recrutement">Recrutement</button>
   </div>
   <!-- TAB PIPE EN COURS -->
   <div id="tab-encours" class="tab-panel active">
@@ -268,8 +280,34 @@ select{appearance:auto;}
       </div>
     </div>
   </div>
+  <!-- TAB CONTRÔLE AGENCES (périmètre France) -->
+  <div id="tab-agences" class="tab-panel">
+    <div class="content">
+      <div style="font-family:'Saira Extra Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--deep);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.4rem;">Pipeline et qualité de saisie par agence</div>
+      <p style="font-size:12px;color:var(--gd);margin-bottom:1.2rem;">Toutes agences, indépendamment du filtre. Besoins ouverts hors projets internes. « Démarrage dépassé » ignore les dates « Immédiate ». Cliquez un nombre pour la liste des besoins.</p>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">Agences</div><div class="kpi-val" id="ag-nb"></div><div class="kpi-sub">dans l'export</div></div>
+        <div class="kpi"><div class="kpi-lbl">CA pondéré France</div><div class="kpi-val" id="ag-cap"></div><div class="kpi-sub">pipe ouvert</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Démarrage dépassé</div><div class="kpi-val" id="ag-dem"></div><div class="kpi-sub">besoins ouverts</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Clôture dépassée</div><div class="kpi-val" id="ag-clo"></div><div class="kpi-sub">besoins ouverts</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Pôle Business dev</div><div class="kpi-val" id="ag-biz"></div><div class="kpi-sub">à recatégoriser</div></div>
+      </div>
+      <div class="card-full"><div class="ct">Par agence</div>
+        <div style="overflow-x:auto">
+        <table class="dt" style="min-width:980px"><colgroup><col style="width:15%"><col style="width:15%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:6%"></colgroup>
+        <thead><tr><th>Agence</th><th>Directeur</th><th class="num">Ouverts</th><th class="num">CA pondéré</th><th class="num">CA envisagé</th><th class="num" id="ag-th-gagne">Gagné</th><th class="num">Démarrage dépassé</th><th class="num">Clôture dépassée</th><th class="num">Pôle Biz dev</th><th class="num">% anomalies</th></tr></thead>
+        <tbody id="tb-agences"></tbody></table>
+        </div>
+        <div class="chart-hint">% anomalies = besoins ouverts avec démarrage ou clôture dépassé, rapportés aux besoins ouverts</div>
+      </div>
+      <div class="card-full"><div class="ct r">Anomalies de saisie par agence</div>
+        <div class="chart-wrap" id="wrap-ag-anom" style="height:300px;"><canvas id="ch-ag-anom"></canvas></div>
+        <div class="chart-hint">Cliquez une barre pour le détail</div>
+      </div>
+    </div>
+  </div>
   <!-- TAB PERFORMANCE -->
-  <div id="tab-performance" class="tab-panel">
+  <div id="tab-performance" class="tab-panel agence-only">
     <div class="content">
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">CA réalisé</div><div class="kpi-val" id="pf-ca">—</div><div class="kpi-sub" id="pf-ca-sub">—</div></div>
@@ -444,14 +482,14 @@ select{appearance:auto;}
       <!-- Toggle vue -->
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap;">
         <div style="font-family:'Saira Extra Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--deep);letter-spacing:.04em;text-transform:uppercase;">Évolution des opportunités</div>
-        <div style="display:flex;gap:4px;background:var(--gl);border-radius:3px;padding:3px;">
+        <div class="agence-only" style="display:flex;gap:4px;background:var(--gl);border-radius:3px;padding:3px;">
           <button class="evo-toggle active" data-view="monthly" style="font-family:'Saira Extra Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:5px 14px;border:none;border-radius:2px;cursor:pointer;background:var(--deep);color:#fff;transition:.15s;">Mensuel</button>
           <button class="evo-toggle" data-view="weekly" style="font-family:'Saira Extra Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:5px 14px;border:none;border-radius:2px;cursor:pointer;background:transparent;color:var(--gd);transition:.15s;">Semaine</button>
         </div>
         <div style="font-size:12px;color:var(--gd);">Nb d'opportunités créées — projets internes exclus</div>
       </div>
       <!-- VUE MENSUELLE : 2024 / 2025 / 2026 côte à côte -->
-      <div id="evo-view-monthly">
+      <div id="evo-view-monthly" class="agence-only">
         <!-- KPIs comparatif -->
         <div class="kpi-grid" style="margin-bottom:1.5rem;">
           <div class="kpi"><div class="kpi-lbl">Total 2024</div><div class="kpi-val" id="evo-total-2024">245</div><div class="kpi-sub">opportunités créées</div></div>
@@ -540,6 +578,7 @@ select{appearance:auto;}
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Opps ouvertes</div><div class="kpi-val" id="q-nb"></div><div class="kpi-sub">hors fermées & internes</div></div>
         <div class="kpi r"><div class="kpi-lbl">Sans date de clôture</div><div class="kpi-val" id="q-nodate"></div><div class="kpi-sub">à compléter</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Démarrage dépassé</div><div class="kpi-val" id="q-startover"></div><div class="kpi-sub">hors « Immédiate », encore ouverts</div></div>
         <div class="kpi r"><div class="kpi-lbl">Clôture dépassée</div><div class="kpi-val" id="q-overdue"></div><div class="kpi-sub">date passée, encore ouvertes</div></div>
         <div class="kpi r"><div class="kpi-lbl">Pôle « Business »</div><div class="kpi-val" id="q-biz"></div><div class="kpi-sub">à recatégoriser</div></div>
         <div class="kpi r"><div class="kpi-lbl">Sans positionnement</div><div class="kpi-val" id="q-nopos"></div><div class="kpi-sub">Pos. Actif = 0</div></div>
@@ -558,13 +597,16 @@ select{appearance:auto;}
           <table class="dt r"><colgroup><col style="width:38%"><col style="width:26%"><col style="width:14%"><col style="width:22%"></colgroup>
           <thead><tr><th>Opportunité</th><th>Client</th><th>Comm.</th><th>Clôture prévue</th></tr></thead><tbody id="tb-q-overdue"></tbody></table></div>
       </div>
+      <div class="card-full"><div class="ct r">Date de démarrage dépassée — besoins encore ouverts</div>
+        <table class="dt r"><colgroup><col style="width:34%"><col style="width:22%"><col style="width:16%"><col style="width:14%"><col style="width:14%"></colgroup>
+        <thead><tr><th>Opportunité</th><th>Client</th><th>Commercial</th><th>Démarrage prévu</th><th>État</th></tr></thead><tbody id="tb-q-startover"></tbody></table></div>
       <div class="card-full"><div class="ct r">Sans positionnement (Pos. Actif = 0)</div>
         <table class="dt r"><colgroup><col style="width:32%"><col style="width:22%"><col style="width:18%"><col style="width:16%"><col style="width:12%"></colgroup>
         <thead><tr><th>Opportunité</th><th>Client</th><th>Pôle</th><th>Commercial</th><th>Créée le</th></tr></thead><tbody id="tb-q-nopos"></tbody></table></div>
     </div>
   </div>
   <!-- TAB RECRUTEMENT -->
-  <div id="tab-recrutement" class="tab-panel">
+  <div id="tab-recrutement" class="tab-panel agence-only">
     <div class="content">
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Arrivées prévues 2026</div><div class="kpi-val" id="rc-arr-prevu">—</div><div class="kpi-sub" id="rc-arr-prevu-sub">objectif officiel Paris</div></div>
@@ -636,16 +678,33 @@ let history=JSON.parse(localStorage.getItem('ippon_v6')||'[]');
 function logout(){fetch('/api/auth/logout',{method:'POST'}).then(()=>{location.href='/login';});}
 let CH={};
 /* ══ UTILS ════════════════════════════════════════════════ */
+/* Lecture CSV conforme aux guillemets : l'export Boond contient des descriptions sur plusieurs
+   lignes et des guillemets doublés (""). Un découpage ligne à ligne perdait ces besoins, d'où des
+   écarts avec les chiffres calculés côté serveur (papaparse) dans les OTO. */
 function parseCsv(text){
-  const lines=text.split('\n').filter(l=>l.trim());
+  text=String(text||'').replace(/^\uFEFF/,'');
+  const nl=text.indexOf('\n');const first=nl>=0?text.slice(0,nl):text;
+  const sep=first.includes(';')?';':',';
+  const recs=[];let rec=[];let f='';let q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}
+      else f+=ch;
+    }else if(ch==='"'){q=true;}
+    else if(ch===sep){rec.push(f);f='';}
+    else if(ch==='\n'){rec.push(f);recs.push(rec);rec=[];f='';}
+    else if(ch!=='\r'){f+=ch;}
+  }
+  if(f!==''||rec.length){rec.push(f);recs.push(rec);}
+  const lines=recs.filter(r=>r.some(v=>v.trim()!==''));
   if(lines.length<2)return[];
-  const sep=lines[0].includes(';')?';':',';
-  const hdr=lines[0].split(sep).map(h=>h.replace(/^"|"$/g,'').trim());
+  const hdr=lines[0].map(h=>h.trim());
   const rows=[];
   for(let i=1;i<lines.length;i++){
-    const vals=smartSplit(lines[i],sep);
+    const vals=lines[i];
     if(vals.length<5)continue;
-    const o={};hdr.forEach((h,j)=>{o[h]=(vals[j]||'').replace(/^"|"$/g,'').trim();});
+    const o={};hdr.forEach((h,j)=>{o[h]=(vals[j]||'').trim();});
     rows.push(o);
   }
   return rows;
@@ -661,7 +720,12 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 function gf(r,...k){for(const x of k){if(r[x]!==undefined&&r[x]!=='')return esc(r[x]);}return'';}
 function dch(id){if(CH[id]){CH[id].destroy();delete CH[id];}}
 const SC={x:{grid:{color:'rgba(0,61,220,0.04)'},ticks:{font:{size:11,family:'Open Sans'},color:'#6E6E6E'},border:{display:false}},y:{grid:{color:'rgba(0,61,220,0.04)'},ticks:{font:{size:11,family:'Open Sans'},color:'#6E6E6E'},border:{display:false}}};
-const getEtat=r=>gf(r,'État','État');
+/* État : les valeurs connues sont rendues telles quelles (chaînes fixes, sans risque), les autres
+   restent échappées. Sans cette liste blanche, gf() transformait « Besoin d'analyse » en
+   « Besoin d&#39;analyse », qui n'était plus reconnu comme ouvert : ces besoins disparaissaient
+   du pipe en cours et de tous les contrôles (régression du correctif XSS du 21/07/2026). */
+const ETATS_CONNUS=new Set(["Besoin d'analyse",'Qualification','A valider','Proposition','Négociation','Fermé gagné','Fermé perdu','Abandonné']);
+const getEtat=r=>{const v=String(r['État']==null?'':r['État']).trim();return ETATS_CONNUS.has(v)?v:esc(v);};
 const getCA=r=>pn(gf(r,'CA Envisagé HT','CA Envisagé HT'));
 const getCAP=r=>pn(gf(r,'CA pondéré HT','CA pondéré HT'));
 const getPond=r=>pn(gf(r,'Pondération','Pondération'));
@@ -1163,11 +1227,13 @@ function buildQualite(rows){
   const dClo=r=>pd(gf(r,'Date de clôture','Date de clôture'));
   const sansDate=ouv.filter(r=>!gf(r,'Date de clôture','Date de clôture'));
   const depassee=ouv.filter(r=>{const d=dClo(r);return d&&d<today;});
+  const demDepasse=ouv.filter(r=>isStartOverdue(r,today));
   const biz=real.filter(r=>getPole(r).toLowerCase().includes('business'));
   const sansPos=ouv.filter(r=>getPos(r)===0);
   document.getElementById('q-nb').textContent=ouv.length;
   document.getElementById('q-nodate').textContent=sansDate.length;
   document.getElementById('q-overdue').textContent=depassee.length;
+  document.getElementById('q-startover').textContent=demDepasse.length;
   document.getElementById('q-biz').textContent=biz.length;
   document.getElementById('q-nopos').textContent=sansPos.length;
   /* Bar ancienneté : opps ouvertes par mois de création (chronologique) */
@@ -1196,6 +1262,9 @@ function buildQualite(rows){
   setTable('tb-q-overdue',[...depassee].sort((a,b)=>(dClo(a)||0)-(dClo(b)||0)),4,
     r=>{const d=dClo(r);const days=d?Math.round((today-d)/86400000):0;return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td style="color:#6D0718;font-weight:700">${d?d.toLocaleDateString('fr-FR'):'—'} <span style="font-size:10px;color:#B0B0B0">(+${days}j)</span></td>`;},
     'Aucune 🎉');
+  setTable('tb-q-startover',[...demDepasse].sort((a,b)=>(getDemarrage(a)||0)-(getDemarrage(b)||0)),5,
+    r=>{const d=getDemarrage(r);const days=d?Math.round((today-d)/86400000):0;return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td style="font-size:11px">${getComm(r)||'—'}</td><td style="color:#6D0718;font-weight:700">${d?d.toLocaleDateString('fr-FR'):'—'} <span style="font-size:10px;color:#B0B0B0">(+${days}j)</span></td><td><span class="bd ${ETAT_BD[getEtat(r)]||'bd-gray'}">${getEtat(r)||'—'}</span></td>`;},
+    'Aucun 🎉');
   setTable('tb-q-nopos',[...sansPos].sort((a,b)=>(getCreation(a)||0)-(getCreation(b)||0)),5,
     r=>{const d=getCreation(r);return `<td title="${tit(r)}">${tit(r)}</td><td>${soc(r)}</td><td>${getPole(r)}</td><td style="font-size:11px">${getComm(r).split(' ')[0]||'—'}</td><td>${d?d.toLocaleDateString('fr-FR'):'—'}</td>`;},
     'Aucune 🎉');
@@ -1748,6 +1817,122 @@ function buildPerformance(){
   if(na&&na.ca!==0)naR=`<tr style="color:var(--gm)"><td style="font-style:italic">Non attribué</td><td></td><td>${fCA(na.ca)}</td><td></td><td>${fCA(na.marge)}</td><td></td></tr>`;
   tf.innerHTML=naR+`<tr style="border-top:2px solid var(--gl);font-weight:700"><td>Agence</td><td style="text-align:right;padding-right:6px">${fCA(Tobj)}</td><td style="color:#004C4C">${fCA(Tca)}</td><td>${Math.round(Tav)}%</td><td>${fCA(Tma)} <span style="font-size:10px;color:var(--gm)">${Tca>0?(Tma/Tca*100).toFixed(1).replace('.',','):0}%</span></td><td>${pfEcart(Tca-Tobj)}</td></tr>`;
 }
+/* ══ PÉRIMÈTRE FRANCE (APP_PERIMETRE=france) ══════════════
+   Filtre agence commun à tous les onglets + onglet « Contrôle agences ».
+   Règles de contrôle identiques à lib/controles-crm.ts (utilisé par les OTO) : toute
+   modification doit être reportée des deux côtés. */
+let IS_FRANCE=false;
+let APP_CFG={perimetre:'agence',directeurs:{}};
+let ALL_ROWS=[];
+let AGENCE_SEL='';
+const getAgenceRaw=r=>String(r['Agence']||'').trim()||'Sans agence';
+const agenceCourt=a=>{const i=a.lastIndexOf(' - ');return i>=0?a.slice(i+3):a;};
+const getDemarrage=r=>pd(gf(r,'Date de démarrage'));
+function isStartOverdue(r,today){const d=getDemarrage(r);return !!d&&d<today;}
+function todayMidnight(){const t=new Date();t.setHours(0,0,0,0);return t;}
+function filteredRows(){return AGENCE_SEL?ALL_ROWS.filter(r=>getAgenceRaw(r)===AGENCE_SEL):ALL_ROWS;}
+function renderAll(){
+  const rows=filteredRows();
+  document.getElementById('opp-count').textContent=rows.length+' opportunités'+(AGENCE_SEL?' · '+agenceCourt(AGENCE_SEL):'');
+  if(!IS_FRANCE){buildPerformance();buildMargeDashboards();buildRecrutement();}
+  buildEnCours(rows);buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildQualite(rows);
+  if(IS_FRANCE)buildAgences(ALL_ROWS);
+}
+function populateAgenceSel(){
+  const sel=document.getElementById('agence-sel');if(!sel)return;
+  const agences=Array.from(new Set(ALL_ROWS.map(getAgenceRaw))).sort((a,b)=>agenceCourt(a).localeCompare(agenceCourt(b),'fr'));
+  if(!AGENCE_SEL){try{AGENCE_SEL=localStorage.getItem('ippon_agence_sel')||'';}catch(e){}}
+  if(AGENCE_SEL&&!agences.includes(AGENCE_SEL))AGENCE_SEL='';
+  if(!IS_FRANCE)AGENCE_SEL='';
+  sel.innerHTML='';
+  const o0=document.createElement('option');o0.value='';o0.textContent='Toutes les agences ('+agences.length+')';sel.appendChild(o0);
+  agences.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=agenceCourt(a);sel.appendChild(o);});
+  sel.value=AGENCE_SEL;
+}
+document.getElementById('agence-sel').addEventListener('change',e=>{
+  AGENCE_SEL=e.target.value;
+  try{localStorage.setItem('ippon_agence_sel',AGENCE_SEL);}catch(err){}
+  closeDrill();renderAll();
+});
+let AG_LISTS={};
+function buildAgences(rows){
+  const today=todayMidnight();
+  const annee=today.getFullYear();
+  const real=rows.filter(r=>!isProjetInterne(r));
+  const groups={};
+  real.forEach(r=>{const a=getAgenceRaw(r);(groups[a]=groups[a]||[]).push(r);});
+  const dClo=r=>pd(gf(r,'Date de clôture'));
+  const stats=Object.keys(groups).map(a=>{
+    const g=groups[a];
+    const ouv=g.filter(r=>ENC.includes(getEtat(r)));
+    const dem=ouv.filter(r=>isStartOverdue(r,today));
+    const clo=ouv.filter(r=>{const d=dClo(r);return d&&d<today;});
+    const biz=g.filter(r=>getPole(r).toLowerCase().includes('business'));
+    const gag=g.filter(r=>GAG.includes(getEtat(r))&&(()=>{const d=getCloture(r);return d&&d.getFullYear()===annee;})());
+    const anom=ouv.filter(r=>dem.includes(r)||clo.includes(r));
+    return {a,ouv,dem,clo,biz,gag,anom,
+      cap:ouv.reduce((s,r)=>s+getCAP(r),0),cae:ouv.reduce((s,r)=>s+getCA(r),0),
+      gagne:gag.reduce((s,r)=>s+getCA(r),0),
+      pct:ouv.length?anom.length/ouv.length:0};
+  }).sort((x,y)=>y.cap-x.cap);
+  const sum=k=>stats.reduce((s,x)=>s+x[k].length,0);
+  document.getElementById('ag-nb').textContent=stats.length;
+  document.getElementById('ag-cap').textContent=fCA(stats.reduce((s,x)=>s+x.cap,0));
+  document.getElementById('ag-dem').textContent=sum('dem');
+  document.getElementById('ag-clo').textContent=sum('clo');
+  document.getElementById('ag-biz').textContent=sum('biz');
+  document.getElementById('ag-th-gagne').textContent='Gagné '+annee;
+  AG_LISTS={};
+  const cnt=(key,list,label,txt)=>{AG_LISTS[key]={list,label};const t=txt!==undefined?txt:list.length;return list.length?`<a class="cnt" data-k="${key}">${t}</a>`:`<a class="cnt zero">${t}</a>`;};
+  const pctCell=p=>{const v=Math.round(p*100);const col=v>=30?'#6D0718':v>=10?'#FF8A00':'#004C4C';return `<span style="color:${col};font-weight:700">${v}%</span>`;};
+  const dirs=(APP_CFG&&APP_CFG.directeurs)||{};
+  const tb=document.getElementById('tb-agences');
+  let html='';
+  stats.forEach((x,i)=>{
+    const nom=agenceCourt(x.a);
+    const da=dirs[x.a];
+    html+=`<tr><td title="${esc(x.a)}" style="font-weight:600">${esc(nom)}</td><td>${da?esc(da):'<span style="color:var(--gm)">non rattaché</span>'}</td>`+
+      `<td class="num">${cnt('o'+i,x.ouv,nom+' — besoins ouverts')}</td><td class="num">${fCA(x.cap)}</td><td class="num">${fCA(x.cae)}</td>`+
+      `<td class="num">${cnt('g'+i,x.gag,nom+' — gagnés '+annee,fCA(x.gagne))}</td>`+
+      `<td class="num">${cnt('d'+i,x.dem,nom+' — démarrage dépassé')}</td><td class="num">${cnt('c'+i,x.clo,nom+' — clôture dépassée')}</td>`+
+      `<td class="num">${cnt('b'+i,x.biz,nom+' — pôle Business development')}</td><td class="num">${pctCell(x.pct)}</td></tr>`;
+  });
+  const all=k=>stats.flatMap(x=>x[k]);
+  const totOuv=sum('ouv'),totAnom=sum('anom');
+  html+=`<tr class="tot"><td>Total France</td><td></td><td class="num">${totOuv}</td><td class="num">${fCA(stats.reduce((s,x)=>s+x.cap,0))}</td><td class="num">${fCA(stats.reduce((s,x)=>s+x.cae,0))}</td><td class="num">${fCA(stats.reduce((s,x)=>s+x.gagne,0))}</td>`+
+    `<td class="num">${cnt('dT',all('dem'),'France — démarrage dépassé')}</td><td class="num">${cnt('cT',all('clo'),'France — clôture dépassée')}</td><td class="num">${cnt('bT',all('biz'),'France — pôle Business development')}</td><td class="num">${pctCell(totOuv?totAnom/totOuv:0)}</td></tr>`;
+  tb.innerHTML=stats.length?html:'<tr><td colspan="10" style="text-align:center;color:var(--gm);padding:14px">Aucune donnée</td></tr>';
+  /* Graphique anomalies empilées */
+  const labels=stats.map(x=>agenceCourt(x.a));
+  document.getElementById('wrap-ag-anom').style.height=Math.max(stats.length*38+80,200)+'px';
+  dch('ag-anom');
+  const series=[['dem','Démarrage dépassé','#FF4C41'],['clo','Clôture dépassée','#6D0718'],['biz','Pôle Business dev','#FF8A00']];
+  CH['ag-anom']=new Chart(document.getElementById('ch-ag-anom'),{type:'bar',
+    data:{labels,datasets:series.map(([k,l,c])=>({label:l,data:stats.map(x=>x[k].length),backgroundColor:c,borderRadius:2,borderWidth:0}))},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',labels:{font:{size:11,family:'Open Sans'},boxWidth:12}},tooltip:{callbacks:{label:c=>` ${c.dataset.label} : ${c.raw}`}}},
+      scales:{x:{...SC.x,stacked:true,ticks:{...SC.x.ticks,stepSize:1}},y:{...SC.y,stacked:true,grid:{display:false}}},
+      onClick:(evt,els)=>{if(els.length){const x=stats[els[0].index];const [k,l]=series[els[0].datasetIndex];openDrill(agenceCourt(x.a),l,x[k],'r');}}}});
+}
+document.getElementById('tb-agences').addEventListener('click',e=>{
+  const el=e.target.closest('a.cnt[data-k]');if(!el)return;
+  const it=AG_LISTS[el.dataset.k];if(!it||!it.list.length)return;
+  openDrill(it.label,`${it.list.length} besoin${it.list.length>1?'s':''}`,it.list);
+});
+function applyPerimetre(cfg){
+  APP_CFG=cfg||APP_CFG;
+  IS_FRANCE=APP_CFG.perimetre==='france';
+  document.body.classList.toggle('mode-france',IS_FRANCE);
+  if(IS_FRANCE){
+    const t=document.querySelector('.tb-title');if(t)t.textContent='Pipeline France';
+    const m=document.getElementById('evo-view-monthly');if(m)m.style.display='none';
+    const w=document.getElementById('evo-view-weekly');if(w)w.style.display='block';
+    const lk=document.querySelector('a[href="/1-1"]');if(lk)lk.textContent='OTO des DA';
+    const act=document.querySelector('.tab-btn.active');
+    if(act&&act.classList.contains('agence-only'))document.querySelector('.tab-btn[data-tab="encours"]').click();
+  }
+  if(ALL_ROWS.length){populateAgenceSel();renderAll();}
+}
 /* ══ LOAD CSV ═════════════════════════════════════════════ */
 function loadCsv(text,isAdd,isRestore){
   const rows=parseCsv(text);
@@ -1768,11 +1953,12 @@ function loadCsv(text,isAdd,isRestore){
   if(!isAdd){
     if(!isRestore){try{localStorage.setItem('ippon_lastcsv',text);}catch(e){}}
     document.getElementById('week-badge').textContent=label;
-    document.getElementById('opp-count').textContent=rows.length+' opportunités';
     const fr=document.getElementById('data-fresh');if(fr)fr.textContent=isNaN(refDate.getTime())?'':'Données au '+refDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
     document.getElementById('drop-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    buildEnCours(rows);buildPerformance();buildMargeDashboards();buildRecrutement();buildCeMois(rows);buildGagnees(rows);buildPerdues(rows);buildCompare(rows);buildEvolution(rows);buildDynamique(rows);buildQualite(rows);
+    ALL_ROWS=rows;
+    populateAgenceSel();
+    renderAll();
   } else {
     buildEvolution(rows);
     alert(`Semaine ${label} ajoutée à l'historique.`);
@@ -1787,7 +1973,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click'
   btn.classList.add('active');
   document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
   /* Lazy build monthly charts when evolution tab becomes visible */
-  if(btn.dataset.tab==='evolution' && EVO_MONTHLY_DIRTY){
+  if(btn.dataset.tab==='evolution' && EVO_MONTHLY_DIRTY && !IS_FRANCE){
     requestAnimationFrame(()=>{buildEvolutionMonthly();EVO_MONTHLY_DIRTY=false;EVO_MONTHLY_BUILT=true;});
   }
 });});
@@ -1915,6 +2101,10 @@ if(history.length>0)buildEvolution([]);
 <!-- ══ AUTO-CHARGEMENT DEPUIS L'APP ══ -->
 <script>
 (function(){
+  fetch('/api/config', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(c => { if (c && c.perimetre === 'france') applyPerimetre(c); })
+    .catch(() => { /* config indisponible : comportement agence historique */ });
   fetch('/api/pipeline-data', { cache: 'no-store' })
     .then(r => (r.ok && r.status !== 204) ? r.text() : null)
     .then(t => { if (t && t.trim()) { try { loadCsv(t, false); } catch (e) { console.error('Auto-load échoué', e); } } })

@@ -32,6 +32,9 @@ import {
   type Acces,
 } from '../lib/access';
 import { calculerPipeline } from '../lib/one-on-one-pipeline';
+import { controlesCrm } from '../lib/controles-crm';
+import { consignePour, CONSIGNE } from '../lib/extraction-trame';
+import { perimetre, vocabulaire } from '../lib/perimetre';
 import { horsPerimetre } from '../lib/one-on-one-formulaire';
 import {
   ExtractionIndisponible,
@@ -527,6 +530,65 @@ async function main() {
     'la casse du libellé Boond compte : « Alex Martin » ne matche pas « Alex MARTIN »',
   );
 
+  // ============================================================ PÉRIMÈTRE FRANCE
+  console.log('\n--- Périmètre France : contrôles CRM et rattachement par agence ---');
+
+  const LYON = 'FRA - Ippon Technologies - Lyon';
+  const oppsFr = [
+    opp({ id: 'L1', agence: LYON, dateDemarrage: '2026-07-01' }), // démarrage dépassé
+    opp({ id: 'L2', agence: LYON, dateDemarrage: null, dateCloturePrev: '2026-07-10' }), // « Immédiate », clôture dépassée
+    opp({ id: 'L3', agence: LYON, pole: 'Business development', etape: 'GAGNE' }), // pôle à corriger, fermé
+    opp({ id: 'L4', agence: LYON, typeBesoin: 'Projet Interne', dateDemarrage: '2026-01-01', pole: 'Business development' }), // interne : ignoré
+    opp({ id: 'L5', agence: LYON, dateDemarrage: '2026-07-01', etape: 'PERDU' }), // fermé : pas de contrôle de date
+    opp({ id: 'P1', agence: 'FRA - Ippon Technologies - Paris', commercial: 'DUPONT Léa' }),
+  ];
+  const ctrl = controlesCrm(oppsFr.filter((o) => o.agence === LYON), today);
+  ok(
+    ctrl.demarrageDepasse.map((o) => o.id).join() === 'L1',
+    'démarrage dépassé : ouvertes seulement, « Immédiate » et projets internes exclus',
+  );
+  ok(
+    ctrl.clotureDepassee.map((o) => o.id).join() === 'L2',
+    'clôture dépassée : ouvertes seulement, hors projets internes',
+  );
+  ok(
+    ctrl.poleBusinessDev.map((o) => o.id).join() === 'L3',
+    'pôle Business development : toutes affaires hors projets internes',
+  );
+
+  const pLyon = calculerPipeline(oppsFr, LYON, today, 'agence');
+  ok(pLyon.rattache && pLyon.nbOuvertes === 3, 'rattachement par agence : 3 ouvertes à Lyon');
+  ok(!pLyon.principales.some((o) => o.id === 'P1'), 'les besoins d’une autre agence sont exclus');
+  ok(pLyon.demarrageDepasse.length === 1, 'le pipeline DA expose le contrôle démarrage');
+  ok(
+    !calculerPipeline(oppsFr, 'DUPONT Léa', today, 'agence').rattache,
+    'en mode agence, un nom de commercial ne rattache rien',
+  );
+  ok(
+    calculerPipeline(oppsFr, 'DUPONT Léa', today).rattache,
+    'sans champ précisé, le rattachement historique par commercial est conservé',
+  );
+
+  const envPerimetre = process.env.APP_PERIMETRE;
+  try {
+    delete process.env.APP_PERIMETRE;
+    ok(perimetre() === 'agence', 'APP_PERIMETRE absent -> périmètre agence (historique)');
+    process.env.APP_PERIMETRE = 'n-importe-quoi';
+    ok(perimetre() === 'agence', 'valeur inconnue -> périmètre agence');
+    process.env.APP_PERIMETRE = ' France ';
+    ok(perimetre() === 'france', 'APP_PERIMETRE=France (casse, espaces) -> périmètre France');
+    ok(vocabulaire().rattachement.champ === 'agence', 'en France, rattachement sur la colonne Agence');
+    ok(consignePour('agence') === CONSIGNE, 'la consigne agence est inchangée');
+    ok(
+      consignePour('france').includes('directeur d’agence') &&
+        consignePour('france').includes('RÈGLE IMPÉRATIVE'),
+      'la consigne France vise le DA et garde la règle de confidentialité',
+    );
+  } finally {
+    if (envPerimetre === undefined) delete process.env.APP_PERIMETRE;
+    else process.env.APP_PERIMETRE = envPerimetre;
+  }
+
   // ============================================================ STOCKAGE
   console.log('\n--- Couche de stockage (backend fichier) ---');
 
@@ -592,6 +654,24 @@ async function main() {
       commercialSimple.role === 'COMMERCIAL' && !peutEcrire(commercialSimple),
       'le commercial suivi reste en lecture seule',
     );
+
+    // Périmètre France : seul l'admin (le DG) entre, quelles que soient les fiches.
+    const envP = process.env.APP_PERIMETRE;
+    process.env.APP_PERIMETRE = 'france';
+    try {
+      const chefFr = await accesPourEmail('chef.equipe@ippon.fr', 'u');
+      ok(chefFr.role === 'AUCUN' && !gere(chefFr, 'com_test'), 'France : un manager de fiche n’a aucun accès');
+      const titulaireFr = await accesPourEmail('test.commercial@ippon.fr', 'u');
+      ok(
+        titulaireFr.role === 'AUCUN' && !peutVoirCommercial(titulaireFr, 'com_test'),
+        'France : le titulaire d’une fiche (un DA) ne voit pas sa propre fiche',
+      );
+      const dgFr = await accesPourEmail('direction@ippon.fr', 'u');
+      ok(dgFr.estAdmin && gere(dgFr, 'com_test'), 'France : l’admin (DG) garde l’accès complet');
+    } finally {
+      if (envP === undefined) delete process.env.APP_PERIMETRE;
+      else process.env.APP_PERIMETRE = envP;
+    }
 
     const inconnu = await accesPourEmail('personne@ippon.fr', 'u');
     ok(inconnu.role === 'AUCUN', 'compte sans fiche ni équipe -> aucun accès');

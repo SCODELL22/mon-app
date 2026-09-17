@@ -18,7 +18,73 @@ import {
   joursEntre,
 } from '@/lib/one-on-one';
 import { dateFr, euros, pct } from '@/lib/format';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
+import type { Opportunity } from '@/lib/domain';
 import { AccesRefuse, Badge, C, Card, Kpi, Message, S, Shell } from '../../ui';
+
+/** Nombre maximal de lignes affichées par contrôle : au-delà, la liste complète est dans le pipeline. */
+const LIGNES_CONTROLE = 15;
+
+function TableControle({
+  titre,
+  liste,
+  dateLabel,
+  dateDe,
+  today,
+}: {
+  titre: string;
+  liste: Opportunity[];
+  dateLabel: string;
+  dateDe: (o: Opportunity) => string | null;
+  today: string;
+}) {
+  return (
+    <Card titre={`${titre} (${liste.length})`} accent={liste.length ? C.orange : C.green}>
+      {liste.length === 0 ? (
+        <p style={S.empty}>Rien à signaler.</p>
+      ) : (
+        <>
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>Besoin</th>
+                <th style={S.th}>Client</th>
+                <th style={S.th}>Commercial</th>
+                <th style={S.th}>Pôle</th>
+                <th style={S.th}>{dateLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...liste]
+                .sort((x, y) => (dateDe(x) ?? '').localeCompare(dateDe(y) ?? ''))
+                .slice(0, LIGNES_CONTROLE)
+                .map((o) => {
+                  const d = dateDe(o);
+                  return (
+                    <tr key={o.id}>
+                      <td style={S.td}>{o.nom}</td>
+                      <td style={{ ...S.td, color: C.gd }}>{o.client}</td>
+                      <td style={S.td}>{o.commercial || '—'}</td>
+                      <td style={{ ...S.td, color: C.gd }}>{o.pole || '—'}</td>
+                      <td style={S.td}>
+                        {d && d < today ? <Badge ton="red">{dateFr(d)}</Badge> : dateFr(d)}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+          {liste.length > LIGNES_CONTROLE && (
+            <p style={{ fontSize: 12, color: C.gd, marginTop: 8 }}>
+              {liste.length - LIGNES_CONTROLE} autre{liste.length - LIGNES_CONTROLE > 1 ? 's' : ''}{' '}
+              — liste complète dans l’onglet « Contrôle agences » du pipeline.
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +105,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const gestion = gere(a, commercial.id);
 
   const today = aujourdHui();
+  const v = vocabulaire();
+  const france = estModeFrance();
   const [brutEntretiens, brutActions, pipeline] = await Promise.all([
     listOneOnOnes(commercial.id),
     listActions({ commercialId: commercial.id }),
@@ -71,12 +139,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <h1 style={S.h1}>{commercial.nom}</h1>
           <p style={S.sub}>
             {commercial.pole || 'Pôle non renseigné'}
-            {dernier ? ` — dernier 1:1 le ${dateFr(dernier.date)} (${joursEntre(dernier.date, today)} j)` : ' — aucun entretien enregistré'}
+            {dernier ? ` — dernier ${v.entretien} le ${dateFr(dernier.date)} (${joursEntre(dernier.date, today)} j)` : ' — aucun entretien enregistré'}
           </p>
         </div>
         {gestion && (
           <a href={`/1-1/nouveau?commercial=${commercial.id}`} style={S.btn}>
-            Nouveau 1:1
+            Nouveau {v.entretien}
           </a>
         )}
       </header>
@@ -95,7 +163,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       {!pipeline.rattache && (
         <Message ton="info">
           Aucune opportunité BoondManager rattachée à cette fiche. Vérifie le champ{' '}
-          <strong>libellé BoondManager</strong> dans{' '}
+          <strong>{v.rattachement.label}</strong> dans{' '}
           {a.estAdmin ? (
             <a href={`/1-1/commerciaux?edit=${commercial.id}`} style={S.link}>
               la fiche
@@ -103,7 +171,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           ) : (
             'la fiche (à demander à l’administrateur)'
           )}{' '}
-          : il doit reprendre à l’identique le « Responsable manager » de l’export.
+          : il doit reprendre à l’identique la colonne « {v.rattachement.colonneBoond} » de l’export.
         </Message>
       )}
 
@@ -126,7 +194,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   <tr key={act.id}>
                     <td style={S.td}>{act.libelle}</td>
                     <td style={{ ...S.td, color: C.gd }}>
-                      {act.porteur === 'MANAGER' ? 'Manager' : commercial.nom}
+                      {act.porteur === 'MANAGER' ? v.manager : commercial.nom}
                     </td>
                     <td style={S.td}>
                       {act.echeance ? (
@@ -162,6 +230,32 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             </tbody>
           </table>
         </Card>
+      )}
+
+      {france && pipeline.rattache && (
+        <>
+          <TableControle
+            titre="Date de démarrage dépassée"
+            liste={pipeline.demarrageDepasse}
+            dateLabel="Démarrage"
+            dateDe={(o) => o.dateDemarrage ?? null}
+            today={today}
+          />
+          <TableControle
+            titre="Date de clôture dépassée"
+            liste={pipeline.clotureDepassee}
+            dateLabel="Clôture"
+            dateDe={(o) => o.dateCloturePrev}
+            today={today}
+          />
+          <TableControle
+            titre="Pôle « Business development » à corriger"
+            liste={pipeline.poleBusinessDev}
+            dateLabel="Clôture"
+            dateDe={(o) => o.dateCloturePrev}
+            today={today}
+          />
+        </>
       )}
 
       {pipeline.rattache && pipeline.principales.length > 0 && (
@@ -212,8 +306,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <thead>
               <tr>
                 <th style={S.th}>Date</th>
-                <th style={S.th}>CA signé</th>
-                <th style={S.th}>RDV</th>
+                <th style={S.th}>{france ? 'CA signé agence' : 'CA signé'}</th>
+                <th style={S.th}>{france ? 'RDV clients' : 'RDV'}</th>
                 <th style={S.th}>Points clés</th>
               </tr>
             </thead>

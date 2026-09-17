@@ -17,6 +17,7 @@ import {
 import { getCommercial, getOneOnOne, listActions, listOneOnOnes } from '@/lib/one-on-one-store';
 import { ACTION_STATUT_META, aujourdHui, isActionOuverte, isEnRetard } from '@/lib/one-on-one';
 import { dateFr, euros } from '@/lib/format';
+import { estModeFrance, vocabulaire } from '@/lib/perimetre';
 import { AccesRefuse, BandeauPrive, Badge, C, Card, Message, S, Shell } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -92,6 +93,9 @@ export default async function Page({
     ? filtrerActionsPourLecteur(await listActions({ oneOnOneId: precedent.id }), [precedent], a)
     : [];
 
+  const v = vocabulaire();
+  // Périmètre France : pas de partage (aucun DA n'a de compte), donc ni statut ni bandeau.
+  const france = estModeFrance();
   const c = entretien.chiffres;
   const aDesChiffres = c.caSigne || c.pipelinePondere || c.nbRdv || c.nbNouveauxComptes;
 
@@ -111,6 +115,7 @@ export default async function Page({
           <h1 style={S.h1}>
             Entretien du {dateFr(entretien.date)}{' '}
             {gestion &&
+              !france &&
               (entretien.statut === 'PARTAGE' ? (
                 <Badge ton="green">partagé</Badge>
               ) : (
@@ -123,7 +128,7 @@ export default async function Page({
                 {commercial.nom}
               </a>
             ) : (
-              'Commercial inconnu'
+              `Fiche ${v.suivi} introuvable`
             )}
             {gestion && entretien.auteurEmail ? ` — mené par ${entretien.auteurEmail}` : ''}
           </p>
@@ -144,7 +149,7 @@ export default async function Page({
       {retire && <Message ton="info">Partage retiré. Le compte rendu est repassé en brouillon.</Message>}
 
       {/* Bandeau de partage : le seul endroit d'où un compte rendu devient lisible du commercial. */}
-      {gestion && (
+      {gestion && !france && (
         <section
           style={{
             background: entretien.statut === 'PARTAGE' ? '#E0F8F3' : '#FFFDF5',
@@ -203,22 +208,22 @@ export default async function Page({
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', fontSize: 14 }}>
             {c.caSigne > 0 && (
               <span>
-                CA signé <strong>{euros(c.caSigne)}</strong>
+                {v.chiffres.caSigne} <strong>{euros(c.caSigne)}</strong>
               </span>
             )}
             {c.pipelinePondere > 0 && (
               <span>
-                Pipeline pondéré <strong>{euros(c.pipelinePondere)}</strong>
+                {v.chiffres.pipelinePondere} <strong>{euros(c.pipelinePondere)}</strong>
               </span>
             )}
             {c.nbRdv > 0 && (
               <span>
-                RDV tenus <strong>{c.nbRdv}</strong>
+                {v.chiffres.nbRdv} <strong>{c.nbRdv}</strong>
               </span>
             )}
             {c.nbNouveauxComptes > 0 && (
               <span>
-                Nouveaux comptes <strong>{c.nbNouveauxComptes}</strong>
+                {v.chiffres.nbNouveauxComptes} <strong>{c.nbNouveauxComptes}</strong>
               </span>
             )}
           </div>
@@ -265,12 +270,12 @@ export default async function Page({
       )}
 
       <Card titre="Compte rendu">
-        <Bloc titre="Lecture des chiffres et du pipeline" texte={entretien.partage.pipelineCommentaire} />
-        <Bloc titre="Deals à risque et blocages" texte={entretien.partage.dealsARisque} />
-        <Bloc titre="Activité amont" texte={entretien.partage.activiteAmont} />
-        <Bloc titre="Administratif" texte={entretien.partage.administratif} />
-        <Bloc titre="Développement et montée en compétences" texte={entretien.partage.developpement} />
-        <Bloc titre="Points clés et décisions" texte={entretien.partage.pointsCles} />
+        <Bloc titre={v.rubriques.pipelineCommentaire.titre} texte={entretien.partage.pipelineCommentaire} />
+        <Bloc titre={v.rubriques.dealsARisque.titre} texte={entretien.partage.dealsARisque} />
+        <Bloc titre={v.rubriques.activiteAmont.titre} texte={entretien.partage.activiteAmont} />
+        <Bloc titre={v.rubriques.administratif.titre} texte={entretien.partage.administratif} />
+        <Bloc titre={v.rubriques.developpement.titre} texte={entretien.partage.developpement} />
+        <Bloc titre={v.rubriques.pointsCles.titre} texte={entretien.partage.pointsCles} />
         {!Object.values(entretien.partage).some(Boolean) && (
           <p style={S.empty}>Aucun texte saisi pour cet entretien.</p>
         )}
@@ -295,7 +300,7 @@ export default async function Page({
                 <tr key={act.id}>
                   <td style={S.td}>{act.libelle}</td>
                   <td style={{ ...S.td, color: C.gd }}>
-                    {act.porteur === 'MANAGER' ? 'Manager' : (commercial?.nom ?? 'Commercial')}
+                    {act.porteur === 'MANAGER' ? v.manager : (commercial?.nom ?? v.suiviCourt)}
                   </td>
                   <td style={S.td}>
                     {act.echeance ? (

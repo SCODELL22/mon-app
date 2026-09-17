@@ -99,6 +99,11 @@ export function parseBoondCsv(text: string): ImportResult {
       probabilite: parsePonderation(get('ponderation')),
       etape: etat ?? 'BESOIN_ANALYSE',
       dateCloturePrev: parseDateFr(get('date de cloture')),
+      agence: get('agence'),
+      // « Immédiate » ne correspond à aucune date : parseDateFr renvoie null, ce qui l'écarte
+      // du contrôle « date de démarrage dépassée » (choix métier retenu).
+      dateDemarrage: parseDateFr(get('date de demarrage')),
+      typeBesoin: get('type'),
       notes: '',
     });
   }
