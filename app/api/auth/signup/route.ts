@@ -9,6 +9,7 @@ import {
   clientIp,
   isValidEmail,
   isAllowedEmail,
+  normaliserEmail,
   redirectTo,
 } from '@/lib/auth';
 
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   }
 
   const form = await req.formData();
-  const email = String(form.get('email') ?? '').trim();
+  const email = normaliserEmail(String(form.get('email') ?? ''));
   const password = String(form.get('password') ?? '');
   const confirm = String(form.get('confirm') ?? '');
 

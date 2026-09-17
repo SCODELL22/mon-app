@@ -32,6 +32,7 @@ import {
   type Acces,
 } from '../lib/access';
 import { calculerPipeline } from '../lib/one-on-one-pipeline';
+import { isAllowedEmail, listeEmails, normaliserEmail } from '../lib/auth';
 import { controlesCrm } from '../lib/controles-crm';
 import { consignePour, CONSIGNE } from '../lib/extraction-trame';
 import { baseSuivi, espaceDe, vocabulaire } from '../lib/espace';
@@ -769,6 +770,33 @@ async function main() {
     (await horsPerimetre(chefSeul, 'com_test', 'o3_autre'))?.status === 403,
     'réécriture refusée d’un entretien d’une autre équipe, même en ciblant son managé',
   );
+
+  // ============================================================ LISTES D'ADRESSES
+  console.log('\n--- Lecture tolérante des listes d’adresses (variables Railway) ---');
+  ok(
+    listeEmails('a@ippon.fr, B@Ippon.fr').join() === 'a@ippon.fr,b@ippon.fr',
+    'virgules + espaces + majuscules',
+  );
+  ok(listeEmails('a@ippon.fr;b@ippon.fr').length === 2, 'points-virgules (format Outlook)');
+  ok(listeEmails('a@ippon.fr\nb@ippon.fr').length === 2, 'retours à la ligne');
+  ok(listeEmails('"a@ippon.fr,b@ippon.fr"').join() === 'a@ippon.fr,b@ippon.fr', 'guillemets autour');
+  ok(
+    listeEmails('Jean Dupont <jean.dupont@ippon.fr>; Léa <lea@ippon.fr>').join() ===
+      'jean.dupont@ippon.fr,lea@ippon.fr',
+    'format « Nom <adresse> »',
+  );
+  ok(listeEmails('a@ippon.fr\u00a0,\u200bb@ippon.fr').join() === 'a@ippon.fr,b@ippon.fr', 'caractères invisibles');
+  ok(listeEmails('').length === 0 && listeEmails(undefined).length === 0, 'variable vide -> liste vide');
+  ok(normaliserEmail(' DG@ippon.fr\u200b ') === 'dg@ippon.fr', 'adresse saisie normalisée');
+  const envAllowed = process.env.ALLOWED_EMAILS;
+  process.env.ALLOWED_EMAILS = 'pascal@ippon.fr; Directeur Général <dg@ippon.fr>';
+  try {
+    ok(isAllowedEmail('DG@ippon.fr ') && isAllowedEmail('pascal@ippon.fr'), 'inscription autorisée malgré le format');
+    ok(!isAllowedEmail('autre@ippon.fr'), 'adresse hors liste toujours refusée');
+  } finally {
+    if (envAllowed === undefined) delete process.env.ALLOWED_EMAILS;
+    else process.env.ALLOWED_EMAILS = envAllowed;
+  }
 
   // ============================================================ ÉTANCHÉITÉ DES ESPACES
   console.log('\n--- Étanchéité agence / direction (stockage) ---');

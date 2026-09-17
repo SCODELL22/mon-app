@@ -28,7 +28,7 @@
 // Principe FAIL-CLOSED : en cas de doute (variable non configurée, session illisible), on refuse.
 // Un module de suivi RH qui s'ouvre par défaut est un incident, pas un désagrément.
 import { cookies } from 'next/headers';
-import { verifySession, SESSION_COOKIE, type SessionPayload } from './auth';
+import { listeEmails, normaliserEmail, verifySession, SESSION_COOKIE, type SessionPayload } from './auth';
 import { getCommercialParEmail, listCommerciauxParManager } from './one-on-one-store';
 import { stripPrivate, type Commercial, type OneOnOne } from './one-on-one';
 import type { Espace } from './espace';
@@ -70,10 +70,7 @@ export const ACCES_REFUSE: Acces = {
  * ouvert à tout compte @ippon.fr.
  */
 function adminEmails(): string[] {
-  return (process.env.MANAGER_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+  return listeEmails(process.env.MANAGER_EMAILS);
 }
 
 /**
@@ -81,14 +78,11 @@ function adminEmails(): string[] {
  * l'espace direction. Non définie = espace direction fermé à tous (fail-closed).
  */
 function dgEmails(): string[] {
-  return (process.env.DG_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+  return listeEmails(process.env.DG_EMAILS);
 }
 
 export function estEmailDg(email: string): boolean {
-  const e = email.trim().toLowerCase();
+  const e = normaliserEmail(email);
   if (!e) return false;
   return dgEmails().includes(e);
 }
@@ -98,7 +92,7 @@ function refusPour(espace: Espace): Acces {
 }
 
 export function estEmailAdmin(email: string): boolean {
-  const e = email.trim().toLowerCase();
+  const e = normaliserEmail(email);
   if (!e) return false;
   return adminEmails().includes(e);
 }
@@ -124,7 +118,7 @@ async function sessionCourante(): Promise<SessionPayload | null> {
  * Calcule les droits d'un email donné. Séparé de acces() pour être testable sans cookie.
  */
 export async function accesPourEmail(espace: Espace, email: string, uid: string): Promise<Acces> {
-  const e = email.trim().toLowerCase();
+  const e = normaliserEmail(email);
   if (!e) return refusPour(espace);
 
   if (espace === 'direction') {

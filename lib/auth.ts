@@ -157,6 +157,29 @@ export function clientIp(req: Request): string {
   return req.headers.get('x-real-ip') ?? 'unknown';
 }
 
+/**
+ * Normalise une adresse saisie : minuscules, sans espaces ni caractères invisibles (espace
+ * insécable, espace de largeur nulle, BOM) qu'un copier-coller depuis Outlook ou Teams ajoute.
+ */
+export function normaliserEmail(email: string): string {
+  return String(email ?? '')
+    .replace(/[\u00A0\u200B-\u200D\u2060\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Lit une liste d'adresses depuis une variable d'environnement, quel que soit le format collé :
+ * virgules, points-virgules (format Outlook), retours à la ligne, guillemets, ou « Nom <adresse> ».
+ * Seules les chaînes qui ressemblent à une adresse sont retenues.
+ * Utilisé pour ALLOWED_EMAILS, MANAGER_EMAILS et DG_EMAILS.
+ */
+export function listeEmails(valeur: string | undefined): string[] {
+  const texte = String(valeur ?? '').replace(/[\u00A0\u200B-\u200D\u2060\uFEFF]/g, ' ');
+  const trouvees = texte.match(/[^\s,;<>"'()\[\]]+@[^\s,;<>"'()\[\]]+/g) ?? [];
+  return [...new Set(trouvees.map((e) => e.toLowerCase()))];
+}
+
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -166,8 +189,8 @@ export function isValidEmail(email: string): boolean {
  * Configurable via ALLOWED_EMAIL_DOMAIN (ex: "ippon.fr") pour ne pas coder le domaine en dur.
  */
 export function isAllowedEmailDomain(email: string): boolean {
-  const domain = (process.env.ALLOWED_EMAIL_DOMAIN || 'ippon.fr').trim().toLowerCase();
-  return email.trim().toLowerCase().endsWith(`@${domain}`);
+  const domain = (process.env.ALLOWED_EMAIL_DOMAIN || 'ippon.fr').trim().toLowerCase().replace(/^@/, '');
+  return normaliserEmail(email).endsWith(`@${domain}`);
 }
 
 /**
@@ -178,13 +201,10 @@ export function isAllowedEmailDomain(email: string): boolean {
  * ALLOWED_EMAILS renseigné.
  */
 export function isAllowedEmail(email: string): boolean {
-  const e = email.trim().toLowerCase();
-  const list = (process.env.ALLOWED_EMAILS || '')
-    .split(',')
-    .map((x) => x.trim().toLowerCase())
-    .filter(Boolean);
+  const e = normaliserEmail(email);
+  const list = listeEmails(process.env.ALLOWED_EMAILS);
   if (list.length > 0) return list.includes(e);
-  return isAllowedEmailDomain(email);
+  return isAllowedEmailDomain(e);
 }
 
 // ---------- Réinitialisation de mot de passe (lien à usage unique, sans état côté serveur) ----------
